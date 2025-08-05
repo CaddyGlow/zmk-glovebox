@@ -1,12 +1,12 @@
 """Grid layout formatting for keyboard layouts and visual displays."""
 
 import enum
-import logging
 import os
 import shutil
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout.models import LayoutBinding, LayoutData
 
 
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class ViewMode(enum.Enum):
@@ -88,8 +88,10 @@ class GridLayoutFormatter:
         # Ensure we have enough bindings, pad if necessary
         if num_bindings_available < config.key_count:
             logger.warning(
-                f"Layer has {num_bindings_available} bindings, expected {config.key_count}. "
-                f"Padding missing indices with '&none'."
+                "layer_bindings_mismatch",
+                bindings_count=num_bindings_available,
+                expected_count=config.key_count,
+                action="padding_with_none",
             )
             bindings.extend(["&none"] * (config.key_count - num_bindings_available))
 

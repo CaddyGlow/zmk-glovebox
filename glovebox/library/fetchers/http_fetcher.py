@@ -9,10 +9,11 @@ from urllib.parse import urlparse
 
 import httpx
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.library.models import FetchResult, LibraryEntry, LibrarySource
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class HTTPFetcher:
@@ -74,7 +75,7 @@ class HTTPFetcher:
         warnings = []
 
         try:
-            logger.info("Downloading layout from %s", source)
+            logger.info("downloading_layout", source=source)
 
             # Download content with browser user agent to avoid Cloudflare blocking
             headers = {
@@ -154,7 +155,9 @@ class HTTPFetcher:
                 )
 
                 logger.info(
-                    "Successfully downloaded layout from %s to %s", source, target_path
+                    "layout_download_successful",
+                    source=source,
+                    target_path=str(target_path),
                 )
                 return FetchResult(
                     success=True, entry=entry, file_path=target_path, warnings=warnings
@@ -165,26 +168,34 @@ class HTTPFetcher:
                 f"HTTP error {e.response.status_code}: {e.response.reason_phrase}"
             )
             errors.append(error_msg)
-            logger.error("HTTP error downloading from %s: %s", source, error_msg)
+            logger.error(
+                "http_download_error",
+                source=source,
+                error=error_msg,
+                status_code=e.response.status_code,
+            )
             return FetchResult(success=False, errors=errors)
 
         except httpx.TimeoutException:
             error_msg = f"Request timeout after {self.timeout} seconds"
             errors.append(error_msg)
-            logger.error("Timeout downloading from %s", source)
+            logger.error("download_timeout", source=source, timeout=self.timeout)
             return FetchResult(success=False, errors=errors)
 
         except httpx.RequestError as e:
             error_msg = f"Request error: {e}"
             errors.append(error_msg)
-            logger.error("Request error downloading from %s: %s", source, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "download_request_error", source=source, error=str(e), exc_info=exc_info
+            )
             return FetchResult(success=False, errors=errors)
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             error_msg = f"Failed to fetch layout from HTTP: {e}"
             errors.append(error_msg)
-            logger.error(error_msg, exc_info=exc_info)
+            logger.error("http_fetch_failed", error=str(e), exc_info=exc_info)
             return FetchResult(success=False, errors=errors)
 
 

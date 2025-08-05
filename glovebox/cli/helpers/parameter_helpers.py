@@ -24,9 +24,10 @@ from glovebox.cli.helpers.stdin_utils import (
     is_stdin_input,
 )
 from glovebox.cli.helpers.theme import get_themed_console
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # Context keys (must match those in parameters.py)
 PARAM_INPUT_RESULT_KEY = "param_input_result"

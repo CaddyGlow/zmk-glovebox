@@ -4,6 +4,7 @@ import logging
 import threading
 from pathlib import Path
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.flash_operations import (
     FlashOperations,
 )
@@ -13,7 +14,7 @@ from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 from glovebox.utils.error_utils import create_usb_error
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class USBAdapter:
@@ -59,7 +60,7 @@ class USBAdapter:
             ValueError: If the query string is invalid
             USBError: If there's an error during device detection
         """
-        logger.info("Detecting device with query: %s", query)
+        logger.info("detecting_device", query=query)
 
         try:
             return self.detector.detect_device(query, timeout, initial_devices)
@@ -75,10 +76,12 @@ class USBAdapter:
                     else 0,
                 },
             )
+            exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Device detection timed out after %d seconds for query: %s",
-                timeout,
-                query,
+                "device_detection_timeout",
+                query=query,
+                timeout=timeout,
+                exc_info=exc_info,
             )
             raise error from e
         except ValueError as e:
@@ -93,7 +96,10 @@ class USBAdapter:
                     else 0,
                 },
             )
-            logger.error("Invalid query for device detection: %s", query)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "invalid_device_detection_query", query=query, exc_info=exc_info
+            )
             raise error from e
         except Exception as e:
             error = create_usb_error(
@@ -107,7 +113,8 @@ class USBAdapter:
                     else 0,
                 },
             )
-            logger.error("Device detection failed: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("device_detection_failed", error=str(e), exc_info=exc_info)
             raise error from e
 
     def list_matching_devices(self, query: str) -> list[USBDeviceType]:
@@ -124,17 +131,19 @@ class USBAdapter:
             ValueError: If the query string is invalid
             USBError: If there's an error retrieving devices
         """
-        logger.debug("Listing devices matching query: %s", query)
+        logger.debug("listing_matching_devices", query=query)
 
         try:
             return self.detector.list_matching_devices(query)
         except ValueError as e:
             error = create_usb_error(query, "list_matching_devices", e, {})
-            logger.error("Invalid query for device listing: %s", query)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("invalid_device_listing_query", query=query, exc_info=exc_info)
             raise error from e
         except Exception as e:
             error = create_usb_error(query, "list_matching_devices", e, {})
-            logger.error("Failed to list matching devices: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("device_listing_failed", error=str(e), exc_info=exc_info)
             raise error from e
 
     def flash_device(
@@ -160,7 +169,9 @@ class USBAdapter:
             USBError: If firmware file doesn't exist or flashing fails after retries
         """
         firmware_path = Path(firmware_file)
-        logger.info("Flashing device %s with firmware: %s", device.name, firmware_path)
+        logger.info(
+            "flashing_device", device_name=device.name, firmware_path=str(firmware_path)
+        )
 
         if not firmware_path.exists():
             error = create_usb_error(
@@ -176,7 +187,7 @@ class USBAdapter:
                     else "unknown",
                 },
             )
-            logger.error("Firmware file not found: %s", firmware_path)
+            logger.error("firmware_file_not_found", firmware_path=str(firmware_path))
             raise error
 
         try:
@@ -197,7 +208,13 @@ class USBAdapter:
                     else "unknown",
                 },
             )
-            logger.error("Failed to flash device %s: %s", device.name, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "device_flash_failed",
+                device_name=device.name,
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def get_all_devices(self, query: str = "") -> list[USBDeviceType]:
@@ -213,7 +230,7 @@ class USBAdapter:
         Raises:
             USBError: If there's an error retrieving devices
         """
-        logger.debug("Getting all block devices")
+        logger.debug("getting_all_block_devices")
 
         try:
             if query:
@@ -222,7 +239,8 @@ class USBAdapter:
                 return self.detector.get_devices()
         except Exception as e:
             error = create_usb_error("all", "get_all_devices", e, {"query": query})
-            logger.error("Failed to get block devices: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("get_block_devices_failed", error=str(e), exc_info=exc_info)
             raise error from e
 
     def mount_device(self, device: BlockDevice) -> list[str]:
@@ -238,12 +256,12 @@ class USBAdapter:
         Raises:
             USBError: If there's an error mounting the device
         """
-        logger.debug("Mounting device: %s", device.name)
+        logger.debug("mounting_device", device_name=device.name)
 
         # Check if device already has mount points
         if device.mountpoints:
             mount_points = list(device.mountpoints.values())
-            logger.debug("Device already mounted at: %s", mount_points)
+            logger.debug("device_already_mounted", mount_points=mount_points)
             return mount_points
 
         try:
@@ -251,7 +269,13 @@ class USBAdapter:
             return mount_points
         except Exception as e:
             error = create_usb_error(device.name, "mount", e)
-            logger.error("Failed to mount device %s: %s", device.name, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "device_mount_failed",
+                device_name=device.name,
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def unmount_device(self, device: BlockDevice) -> bool:
@@ -267,13 +291,19 @@ class USBAdapter:
         Raises:
             USBError: If there's an error unmounting the device
         """
-        logger.debug("Unmounting device: %s", device.name)
+        logger.debug("unmounting_device", device_name=device.name)
 
         try:
             return self._flash_ops._os_adapter.unmount_device(device)
         except Exception as e:
             error = create_usb_error(device.name, "unmount", e)
-            logger.error("Failed to unmount device %s: %s", device.name, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "device_unmount_failed",
+                device_name=device.name,
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def copy_file(self, source: Path, destination: Path) -> bool:
@@ -290,7 +320,7 @@ class USBAdapter:
         Raises:
             USBError: If there's an error copying the file
         """
-        logger.debug("Copying file from %s to %s", source, destination)
+        logger.debug("copying_file", source=str(source), destination=str(destination))
         try:
             # If destination is a directory, copy to the parent directory
             if destination.is_dir():
@@ -314,8 +344,13 @@ class USBAdapter:
                 e,
                 {"source": str(source), "destination": str(destination)},
             )
+            exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Failed to copy file from %s to %s: %s", source, destination, e
+                "file_copy_failed",
+                source=str(source),
+                destination=str(destination),
+                error=str(e),
+                exc_info=exc_info,
             )
             raise error from e
 

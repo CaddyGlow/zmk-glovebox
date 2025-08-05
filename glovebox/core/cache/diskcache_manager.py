@@ -11,9 +11,10 @@ import diskcache  # type: ignore[import-untyped]
 
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.models import CacheMetadata, CacheStats, DiskCacheConfig
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class DiskCacheManager(CacheManager):
@@ -39,7 +40,7 @@ class DiskCacheManager(CacheManager):
         self.config = config
         self.tag = tag
         self.session_metrics = session_metrics
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.logger = get_struct_logger(f"{__name__}.{self.__class__.__name__}")
 
         # Create cache directory
         cache_path = (
@@ -163,7 +164,7 @@ class DiskCacheManager(CacheManager):
                         ).inc()
                 else:
                     self._stats.miss_count += 1
-                    self.logger.debug("Cache miss for key: %s", key)
+                    self.logger.debug("cache_miss", key=key)
 
                     # Track cache miss in metrics
                     if self._cache_hit_miss_counter:
@@ -184,7 +185,7 @@ class DiskCacheManager(CacheManager):
 
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.warning(
-                    "Cache get error for key %s: %s", key, e, exc_info=exc_info
+                    "cache_get_error", key=key, error=str(e), exc_info=exc_info
                 )
                 return default
 
@@ -215,7 +216,7 @@ class DiskCacheManager(CacheManager):
 
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.warning(
-                    "Cache set error for key %s: %s", key, e, exc_info=exc_info
+                    "cache_set_error", key=key, error=str(e), exc_info=exc_info
                 )
                 raise
 
@@ -231,12 +232,12 @@ class DiskCacheManager(CacheManager):
         try:
             # DiskCache.delete() returns True if key existed, False otherwise
             result: bool = self._cache.delete(key)
-            self.logger.debug("Deleted cache key: %s (existed: %s)", key, result)
+            self.logger.debug("cache_key_deleted", key=key, existed=result)
             return result
 
         except Exception as e:
             self._stats.error_count += 1
-            self.logger.warning("Cache delete error for key %s: %s", key, e)
+            self.logger.warning("cache_delete_error", key=key, error=str(e))
             return False
 
     def delete_many(self, keys: list[str]) -> int:
@@ -253,7 +254,9 @@ class DiskCacheManager(CacheManager):
             if self.delete(key):
                 deleted_count += 1
 
-        self.logger.debug("Deleted %d/%d cache keys", deleted_count, len(keys))
+        self.logger.debug(
+            "cache_keys_deleted", deleted_count=deleted_count, total_keys=len(keys)
+        )
         return deleted_count
 
     def clear(self) -> None:
@@ -269,11 +272,11 @@ class DiskCacheManager(CacheManager):
                 eviction_count=self._stats.eviction_count,
                 error_count=self._stats.error_count,
             )
-            self.logger.info("Cache cleared")
+            self.logger.info("cache_cleared")
 
         except Exception as e:
             self._stats.error_count += 1
-            self.logger.warning("Cache clear error: %s", e)
+            self.logger.warning("cache_clear_error", error=str(e))
             raise
 
     def exists(self, key: str) -> bool:
@@ -291,7 +294,7 @@ class DiskCacheManager(CacheManager):
 
         except Exception as e:
             self._stats.error_count += 1
-            self.logger.warning("Cache exists error for key %s: %s", key, e)
+            self.logger.warning("cache_exists_error", key=key, error=str(e))
             return False
 
     def get_metadata(self, key: str) -> CacheMetadata | None:
@@ -329,7 +332,7 @@ class DiskCacheManager(CacheManager):
 
         except Exception as e:
             self._stats.error_count += 1
-            self.logger.warning("Cache metadata error for key %s: %s", key, e)
+            self.logger.warning("cache_metadata_error", key=key, error=str(e))
             return None
 
     def get_stats(self) -> CacheStats:
@@ -354,7 +357,7 @@ class DiskCacheManager(CacheManager):
             return self._stats
 
         except Exception as e:
-            self.logger.warning("Error getting cache stats: %s", e)
+            self.logger.warning("cache_stats_error", error=str(e))
             return self._stats
 
     def cleanup(self) -> int:
@@ -372,13 +375,13 @@ class DiskCacheManager(CacheManager):
             self._stats.eviction_count += evicted
 
             if evicted > 0:
-                self.logger.info("Evicted %d cache entries", evicted)
+                self.logger.info("cache_entries_evicted", count=evicted)
 
             return evicted
 
         except Exception as e:
             self._stats.error_count += 1
-            self.logger.warning("Cache cleanup error: %s", e)
+            self.logger.warning("cache_cleanup_error", error=str(e))
             return 0
 
     def keys(self) -> list[str]:
@@ -393,16 +396,16 @@ class DiskCacheManager(CacheManager):
 
         except Exception as e:
             self._stats.error_count += 1
-            self.logger.warning("Cache keys error: %s", e)
+            self.logger.warning("cache_keys_error", error=str(e))
             return []
 
     def close(self) -> None:
         """Close the cache and release resources."""
         try:
             self._cache.close()
-            self.logger.debug("Cache closed")
+            self.logger.debug("cache_closed")
         except Exception as e:
-            self.logger.warning("Error closing cache: %s", e)
+            self.logger.warning("cache_close_error", error=str(e))
 
     def __enter__(self) -> "DiskCacheManager":
         """Context manager entry."""

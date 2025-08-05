@@ -8,9 +8,10 @@ import typer
 from click import Context as ClickContext
 
 from glovebox.config.profile import KeyboardProfile
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # Cache keys and TTL settings for completion data
 PROFILE_COMPLETION_CACHE_KEY = "profile_completion_data_v1"

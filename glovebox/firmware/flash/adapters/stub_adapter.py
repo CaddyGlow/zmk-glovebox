@@ -1,9 +1,10 @@
 """Stub implementation for unsupported platforms."""
 
-import logging
 import platform
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
 from glovebox.firmware.flash.models import BlockDevice
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class StubFlashOS:

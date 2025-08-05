@@ -1,6 +1,5 @@
 """Layout service for all layout-related operations."""
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from glovebox.layout.formatting import ViewMode
@@ -22,9 +21,6 @@ from glovebox.protocols import (
 )
 from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 from glovebox.services.base_service import BaseService
-
-
-logger = logging.getLogger(__name__)
 
 
 class LayoutService(BaseService):
@@ -71,7 +67,9 @@ class LayoutService(BaseService):
         Raises:
             LayoutError: If compilation fails
         """
-        logger.info("Starting keymap compilation from data")
+        self.logger.info(
+            "starting_keymap_compilation", operation="compile", source="data"
+        )
 
         try:
             # Validate and convert input data to LayoutData model
@@ -180,8 +178,9 @@ class LayoutService(BaseService):
             )
 
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Layout compilation failed: %s", e, exc_info=exc_info)
+            self.log_error_with_context(
+                "layout_compilation_failed", e, operation="compile"
+            )
             raise LayoutError(f"Layout compilation failed: {e}") from e
 
     def validate(self, layout_data: dict[str, Any]) -> bool:
@@ -193,7 +192,7 @@ class LayoutService(BaseService):
         Returns:
             True if validation passes, False otherwise
         """
-        logger.info("Validating layout data")
+        self.logger.info("validating_layout_data", operation="validate")
 
         try:
             # Validate data can be converted to LayoutData model
@@ -201,31 +200,41 @@ class LayoutService(BaseService):
 
             # Basic validation checks
             if not keymap_data.layers:
-                logger.error("No layers found in layout data")
+                self.logger.error(
+                    "validation_failed", reason="no_layers_found", operation="validate"
+                )
                 return False
 
             if not keymap_data.keyboard:
-                logger.warning("No keyboard specified in layout data")
+                self.logger.warning(
+                    "validation_warning",
+                    reason="no_keyboard_specified",
+                    operation="validate",
+                )
 
             # Validate layer consistency
             if keymap_data.layers:
                 first_layer_length = len(keymap_data.layers[0])
                 for i, layer in enumerate(keymap_data.layers):
                     if len(layer) != first_layer_length:
-                        logger.error(
-                            "Layer %d has %d keys, but layer 0 has %d keys",
-                            i,
-                            len(layer),
-                            first_layer_length,
+                        self.logger.error(
+                            "layer_length_mismatch",
+                            operation="validate",
+                            layer_index=i,
+                            layer_key_count=len(layer),
+                            expected_key_count=first_layer_length,
                         )
                         return False
 
-            logger.info("Layout data validation passed")
+            self.logger.info(
+                "validation_completed", operation="validate", result="success"
+            )
             return True
 
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Layout validation failed: %s", e, exc_info=exc_info)
+            self.log_error_with_context(
+                "layout_validation_failed", e, operation="validate"
+            )
             return False
 
     def show(
@@ -243,7 +252,7 @@ class LayoutService(BaseService):
         Raises:
             LayoutError: If display generation fails
         """
-        logger.info("Generating layout display from data")
+        self.logger.info("generating_layout_display", operation="show", mode=mode.value)
 
         try:
             # Validate and convert input data to LayoutData model
@@ -251,8 +260,10 @@ class LayoutService(BaseService):
 
             # TODO: For now, return a simplified display without full profile integration
             # This allows the refactoring to complete while maintaining test compatibility
-            logger.warning(
-                "Simplified display - full profile integration needed for complete functionality"
+            self.logger.warning(
+                "simplified_display_mode",
+                operation="show",
+                reason="full_profile_integration_needed",
             )
 
             # Generate basic layout display
@@ -280,8 +291,9 @@ class LayoutService(BaseService):
             return "\n".join(display_lines)
 
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Layout display generation failed: %s", e, exc_info=exc_info)
+            self.log_error_with_context(
+                "layout_display_generation_failed", e, operation="show"
+            )
             raise LayoutError(f"Layout display generation failed: {e}") from e
 
 

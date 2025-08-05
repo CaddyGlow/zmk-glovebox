@@ -1,6 +1,5 @@
 """Service for layout component extraction and management."""
 
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
 
@@ -18,9 +17,6 @@ from glovebox.layout.models import (
 )
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.services.base_service import BaseService
-
-
-logger = logging.getLogger(__name__)
 
 
 # Type alias for result dictionaries
@@ -65,7 +61,11 @@ class LayoutComponentService(BaseService):
             keyboard_name = keymap_data.get("keyboard", "unknown")
         else:
             keyboard_name = getattr(keymap_data, "keyboard", "unknown")
-        logger.info("Processing keymap components for %s", keyboard_name)
+        self.logger.info(
+            "processing_keymap_components",
+            operation="process_keymap_components",
+            keyboard=keyboard_name,
+        )
 
         try:
             # Handle both LayoutData objects and raw dictionaries
@@ -99,10 +99,11 @@ class LayoutComponentService(BaseService):
                 ),
             }
 
-            logger.debug(
-                "Processed components: %d layers, %d behaviors",
-                len(components["layers"]),
-                len(components["hold_taps"])
+            self.logger.debug(
+                "processed_components",
+                operation="process_keymap_components",
+                layers_count=len(components["layers"]),
+                behaviors_count=len(components["hold_taps"])
                 + len(components["combos"])
                 + len(components["macros"]),
             )
@@ -110,8 +111,9 @@ class LayoutComponentService(BaseService):
             return components
 
         except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Component processing failed: %s", e, exc_info=exc_info)
+            self.log_error_with_context(
+                "component_processing_failed", e, operation="process_keymap_components"
+            )
             raise LayoutError(f"Component processing failed: {e}") from e
 
     def split_components(self, layout: LayoutData, output_dir: Path) -> LayoutResult:
@@ -127,7 +129,11 @@ class LayoutComponentService(BaseService):
         Raises:
             LayoutError: If extraction fails
         """
-        logger.info("Extracting layout components to %s", output_dir)
+        self.logger.info(
+            "extracting_layout_components",
+            operation="split_components",
+            output_dir=str(output_dir),
+        )
 
         result = LayoutResult(success=False)
 
@@ -156,7 +162,7 @@ class LayoutComponentService(BaseService):
 
         except Exception as e:
             result.add_error(f"Layer extraction failed: {e}")
-            logger.error("Layer extraction failed: %s", e)
+            self.logger.error("Layer extraction failed: %s", e)
             raise LayoutError(f"Layer extraction failed: {e}") from e
 
     def merge_components(
@@ -174,7 +180,7 @@ class LayoutComponentService(BaseService):
         Raises:
             LayoutError: If combination fails
         """
-        # logger.info("Merging layers from %s", layers_dir)
+        # self.logger.info("Merging layers from %s", layers_dir)
 
         layers_dir = layers_dir.resolve()
 
@@ -196,7 +202,7 @@ class LayoutComponentService(BaseService):
         # Add behavior data from behaviors.json if it exists
         self._add_behavior_data_from_file(merged_layout, parent_dir)
 
-        logger.info("Successfully merged %d layers", len(merged_layout.layers))
+        self.logger.info("Successfully merged %d layers", len(merged_layout.layers))
 
         return merged_layout
 
@@ -216,12 +222,14 @@ class LayoutComponentService(BaseService):
         if device_dtsi:
             device_dtsi_path = output_dir / "device.dtsi"
             self._file_adapter.write_text(device_dtsi_path, device_dtsi)
-            logger.info("Extracted custom_devicetree to %s", device_dtsi_path)
+            self.logger.info("Extracted custom_devicetree to %s", device_dtsi_path)
 
         if behaviors_dtsi:
             keymap_dtsi_path = output_dir / "keymap.dtsi"
             self._file_adapter.write_text(keymap_dtsi_path, behaviors_dtsi)
-            logger.info("Extracted custom_defined_behaviors to %s", keymap_dtsi_path)
+            self.logger.info(
+                "Extracted custom_defined_behaviors to %s", keymap_dtsi_path
+            )
 
     def _extract_behavior_data(self, layout: LayoutData, output_dir: Path) -> None:
         """Extract behavior data to behaviors.json.
@@ -244,9 +252,9 @@ class LayoutComponentService(BaseService):
         if not behavior_data.is_empty():
             behaviors_file = output_dir / "behaviors.json"
             self._file_adapter.write_json(behaviors_file, behavior_data.to_dict())
-            logger.info("Extracted behavior definitions to %s", behaviors_file)
+            self.logger.info("Extracted behavior definitions to %s", behaviors_file)
         else:
-            logger.debug("No behavior definitions found, skipping behaviors.json")
+            self.logger.debug("No behavior definitions found, skipping behaviors.json")
 
     def _extract_metadata_config(self, layout: LayoutData, output_dir: Path) -> None:
         """Extract metadata configuration to metadata.json.
@@ -277,7 +285,7 @@ class LayoutComponentService(BaseService):
         # Save with proper serialization
         output_file = output_dir / "metadata.json"
         self._file_adapter.write_json(output_file, metadata_dict)
-        logger.info("Extracted metadata configuration to %s", output_file)
+        self.logger.info("Extracted metadata configuration to %s", output_file)
 
     def _extract_individual_layers(
         self, layout: LayoutData, output_layer_dir: Path
@@ -294,12 +302,12 @@ class LayoutComponentService(BaseService):
         layers_data = layout.layers
 
         if not layer_names or not layers_data:
-            logger.warning(
+            self.logger.warning(
                 "No layer names or data found. Cannot extract individual layers."
             )
             return
 
-        logger.info("Extracting %d layers...", len(layer_names))
+        self.logger.info("Extracting %d layers...", len(layer_names))
 
         for i, layer_name in enumerate(layer_names):
             # Sanitize layer name for filename
@@ -312,7 +320,7 @@ class LayoutComponentService(BaseService):
             if i < len(layers_data):
                 layer_bindings = layers_data[i]
             else:
-                logger.error(
+                self.logger.error(
                     "Could not find data for layer index %d ('%s'). Skipping.",
                     i,
                     layer_name,
@@ -343,7 +351,7 @@ class LayoutComponentService(BaseService):
             self._file_adapter.write_json(
                 output_file, single_layer_layout.model_dump(mode="json", by_alias=True)
             )
-            logger.info("Extracted layer '%s' to %s", layer_name, output_file)
+            self.logger.info("Extracted layer '%s' to %s", layer_name, output_file)
 
     # Helper methods for layer merging
 
@@ -362,7 +370,7 @@ class LayoutComponentService(BaseService):
         merged_layout.layers = []
         layer_names = merged_layout.layer_names
 
-        logger.info(
+        self.logger.info(
             "Expecting %d layers based on metadata.json: %s",
             len(layer_names),
             layer_names,
@@ -374,7 +382,7 @@ class LayoutComponentService(BaseService):
 
             keyboard_config = load_keyboard_config(merged_layout.keyboard)
             num_keys = keyboard_config.key_count
-            logger.debug(
+            self.logger.debug(
                 "Using key count %d from keyboard config for %s",
                 num_keys,
                 merged_layout.keyboard,
@@ -382,7 +390,7 @@ class LayoutComponentService(BaseService):
         except Exception as e:
             # Fall back to default if keyboard config cannot be loaded
             num_keys = 80  # Default fallback
-            logger.warning(
+            self.logger.warning(
                 "Could not load keyboard config for %s: %s. Using default key count %d",
                 merged_layout.keyboard,
                 e,
@@ -400,7 +408,7 @@ class LayoutComponentService(BaseService):
             layer_file = layers_dir / f"{safe_layer_name}.json"
 
             if not self._file_adapter.is_file(layer_file):
-                logger.warning(
+                self.logger.warning(
                     "Layer file '%s' not found for layer '%s'. Adding empty layer.",
                     layer_file.name,
                     layer_name,
@@ -408,7 +416,7 @@ class LayoutComponentService(BaseService):
                 merged_layout.layers.append(empty_layer)
                 continue
 
-            logger.info(
+            self.logger.info(
                 "Processing layer '%s' from file: %s", layer_name, layer_file.name
             )
 
@@ -424,7 +432,7 @@ class LayoutComponentService(BaseService):
                     actual_layer_content = layer_data["layers"][0]
 
                     if len(actual_layer_content) != num_keys:
-                        logger.warning(
+                        self.logger.warning(
                             "Layer '%s' from %s has %d keys, expected %d. "
                             "Padding/truncating.",
                             layer_name,
@@ -447,17 +455,17 @@ class LayoutComponentService(BaseService):
                             binding = LayoutBinding.model_validate(binding_data)
                             typed_layer.append(binding)
                         except Exception as binding_err:
-                            logger.warning(
+                            self.logger.warning(
                                 f"Invalid binding in layer '{layer_name}': {binding_err}. "
                                 f"Using empty binding."
                             )
                             typed_layer.append(empty_binding)
 
                     merged_layout.layers.append(typed_layer)
-                    logger.info("Added layer '%s' (index %d)", layer_name, i)
+                    self.logger.info("Added layer '%s' (index %d)", layer_name, i)
                     found_layer_count += 1
                 else:
-                    logger.warning(
+                    self.logger.warning(
                         "Layer data missing or invalid in %s for layer '%s'. "
                         "Using empty layer.",
                         layer_file.name,
@@ -466,14 +474,14 @@ class LayoutComponentService(BaseService):
                     merged_layout.layers.append(empty_layer)
 
             except Exception as e:
-                logger.error(
+                self.logger.error(
                     "Error processing layer file %s: %s. Adding empty layer.",
                     layer_file.name,
                     e,
                 )
                 merged_layout.layers.append(empty_layer)
 
-        logger.info(
+        self.logger.info(
             "Successfully processed %d out of %d expected layers.",
             found_layer_count,
             len(layer_names),
@@ -496,7 +504,7 @@ class LayoutComponentService(BaseService):
             merged_layout.custom_devicetree = self._file_adapter.read_text(
                 device_dtsi_path
             )
-            logger.info("Restored custom_devicetree from device.dtsi.")
+            self.logger.info("Restored custom_devicetree from device.dtsi.")
         else:
             merged_layout.custom_devicetree = ""
 
@@ -505,7 +513,7 @@ class LayoutComponentService(BaseService):
             merged_layout.custom_defined_behaviors = self._file_adapter.read_text(
                 keymap_dtsi_path
             )
-            logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
+            self.logger.info("Restored custom_defined_behaviors from keymap.dtsi.")
         else:
             merged_layout.custom_defined_behaviors = ""
 
@@ -533,14 +541,14 @@ class LayoutComponentService(BaseService):
                 merged_layout.input_listeners = behavior_data.input_listeners
                 merged_layout.config_parameters = behavior_data.config_parameters
 
-                logger.info("Restored behavior definitions from behaviors.json")
+                self.logger.info("Restored behavior definitions from behaviors.json")
             except Exception as e:
-                logger.error(
+                self.logger.error(
                     "Failed to load behavior data from %s: %s", behaviors_file, e
                 )
                 # Continue without behavior data rather than failing
         else:
-            logger.debug("No behaviors.json file found, using empty behavior data")
+            self.logger.debug("No behaviors.json file found, using empty behavior data")
             # Initialize with empty behavior data
             merged_layout.variables = {}
             merged_layout.hold_taps = []

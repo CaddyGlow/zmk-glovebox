@@ -9,18 +9,19 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glovebox.utils.xdg import get_xdg_config_dir
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.utils.installation import (
     detect_installation_method,
     get_install_method_display_name,
 )
+from glovebox.utils.xdg import get_xdg_config_dir
 
 
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def collect_system_diagnostics() -> dict[str, Any]:

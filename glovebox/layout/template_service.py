@@ -1,6 +1,5 @@
 """Template processing service for layout data."""
 
-import logging
 import re
 from typing import Any, Literal, TypeAlias
 
@@ -39,7 +38,6 @@ class TemplateService(BaseService):
         """
         super().__init__(service_name="TemplateService", service_version="1.0.0")
         self.template_adapter = template_adapter
-        self.logger = logging.getLogger(__name__)
         self._resolution_cache: dict[str, Any] = {}
 
     def process_layout_data(self, layout_data: LayoutData) -> LayoutData:
@@ -56,7 +54,10 @@ class TemplateService(BaseService):
             CircularReferenceError: If circular dependencies are detected
         """
         try:
-            self.logger.debug("Starting multi-pass template resolution")
+            self.logger.debug(
+                "starting_multipass_template_resolution",
+                operation="process_layout_data",
+            )
             self._resolution_cache.clear()
 
             # Convert to dict for processing
@@ -64,7 +65,11 @@ class TemplateService(BaseService):
 
             # Skip processing if no variables or templates
             if not self._has_templates(data):
-                self.logger.debug("No templates found, skipping processing")
+                self.logger.debug(
+                    "no_templates_found",
+                    operation="process_layout_data",
+                    action="skipping",
+                )
                 return layout_data
 
             # Multi-pass resolution
@@ -76,12 +81,17 @@ class TemplateService(BaseService):
             # Create new LayoutData instance with resolved data
             resolved_layout = LayoutData.model_validate(data)
 
-            self.logger.debug("Template resolution completed successfully")
+            self.logger.debug(
+                "template_resolution_completed",
+                operation="process_layout_data",
+                result="success",
+            )
             return resolved_layout
 
         except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Template processing failed: %s", e, exc_info=exc_info)
+            self.log_error_with_context(
+                "template_processing_failed", e, operation="process_layout_data"
+            )
             raise TemplateError(f"Template processing failed: {e}") from e
 
     def create_template_context(
@@ -188,8 +198,9 @@ class TemplateService(BaseService):
         try:
             self._validate_templates_in_structure(data, "", errors)
         except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Template validation failed: %s", e, exc_info=exc_info)
+            self.log_error_with_context(
+                "template_validation_failed", e, operation="validate_template_syntax"
+            )
             errors.append(f"Validation error: {e}")
 
         return errors
@@ -225,12 +236,18 @@ class TemplateService(BaseService):
             TemplateError: If template processing fails
         """
         try:
-            self.logger.debug("Processing templates on raw data")
+            self.logger.debug(
+                "processing_templates_raw_data", operation="process_raw_data"
+            )
             self._resolution_cache.clear()
 
             # Skip processing if no variables or templates
             if not self._has_templates(data):
-                self.logger.debug("No templates found, skipping processing")
+                self.logger.debug(
+                    "no_templates_found",
+                    operation="process_raw_data",
+                    action="skipping",
+                )
                 return data
 
             # Create a copy to avoid modifying the original
@@ -242,13 +259,16 @@ class TemplateService(BaseService):
             processed_data = self._resolve_layers(processed_data)
             processed_data = self._resolve_custom_code(processed_data)
 
-            self.logger.debug("Raw data template resolution completed successfully")
+            self.logger.debug(
+                "raw_data_template_resolution_completed",
+                operation="process_raw_data",
+                result="success",
+            )
             return processed_data
 
         except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error(
-                "Raw data template processing failed: %s", e, exc_info=exc_info
+            self.log_error_with_context(
+                "raw_data_template_processing_failed", e, operation="process_raw_data"
             )
             raise TemplateError(f"Raw data template processing failed: {e}") from e
 
@@ -268,7 +288,7 @@ class TemplateService(BaseService):
 
     def _resolve_basic_fields(self, data: dict[str, Any]) -> dict[str, Any]:
         """Resolve basic metadata fields that don't reference complex structures."""
-        self.logger.debug("Resolving basic fields")
+        self.logger.debug("resolving_basic_fields", operation="resolve_basic_fields")
         context = self._create_template_context_from_dict(data, "basic")
 
         # Process basic metadata fields
@@ -281,7 +301,9 @@ class TemplateService(BaseService):
 
     def _resolve_behaviors(self, data: dict[str, Any]) -> dict[str, Any]:
         """Resolve behavior definitions with enriched context."""
-        self.logger.debug("Resolving behavior definitions")
+        self.logger.debug(
+            "resolving_behavior_definitions", operation="resolve_behaviors"
+        )
         context = self._create_template_context_from_dict(data, "behaviors")
 
         # Process behavior arrays
@@ -296,7 +318,7 @@ class TemplateService(BaseService):
 
     def _resolve_layers(self, data: dict[str, Any]) -> dict[str, Any]:
         """Resolve layer content with full behavior context."""
-        self.logger.debug("Resolving layer content")
+        self.logger.debug("resolving_layer_content", operation="resolve_layers")
         context = self._create_template_context_from_dict(data, "layers")
 
         # Process layers
@@ -314,7 +336,7 @@ class TemplateService(BaseService):
 
     def _resolve_custom_code(self, data: dict[str, Any]) -> dict[str, Any]:
         """Resolve custom DTSI/behavior code with full layout context."""
-        self.logger.debug("Resolving custom code")
+        self.logger.debug("resolving_custom_code", operation="resolve_custom_code")
         context = self._create_template_context_from_dict(data, "custom")
 
         # Process custom code fields
@@ -345,12 +367,11 @@ class TemplateService(BaseService):
             rendered = self.template_adapter.render_string(value, context)
             return self._convert_to_appropriate_type(rendered)
         except Exception as e:
-            exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error(
-                "Template rendering failed for '%s': %s",
-                value[:50],
+            self.log_error_with_context(
+                "template_rendering_failed",
                 e,
-                exc_info=exc_info,
+                operation="process_string_field",
+                template_preview=value[:50],
             )
             raise TemplateError(f"Template rendering failed: {e}") from e
 

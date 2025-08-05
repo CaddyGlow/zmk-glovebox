@@ -1,6 +1,5 @@
 """Cache clear CLI command."""
 
-import logging
 import shutil
 from pathlib import Path
 from typing import Annotated
@@ -11,6 +10,7 @@ from rich.console import Console
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.config.user_config import create_user_config
+from glovebox.core.structlog_logger import get_struct_logger
 
 from .utils import (
     format_icon_with_message,
@@ -21,7 +21,7 @@ from .utils import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 console = Console()
 
 

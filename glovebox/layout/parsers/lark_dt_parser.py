@@ -1,10 +1,11 @@
 """Lark-based device tree parser for ZMK keymap files."""
 
-import logging
 from pathlib import Path
 from typing import Any
 
 from lark import Lark, Token, Tree, UnexpectedCharacters, UnexpectedEOF, UnexpectedToken
+
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 
 from .ast_nodes import (
     DTComment,
@@ -16,15 +17,15 @@ from .ast_nodes import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
-class LarkDTParser:
+class LarkDTParser(StructlogMixin):
     """Lark-based device tree parser with grammar-driven parsing."""
 
     def __init__(self) -> None:
         """Initialize the Lark parser with device tree grammar."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
         # Load grammar from file
         grammar_path = Path(__file__).parent / "devicetree.lark"

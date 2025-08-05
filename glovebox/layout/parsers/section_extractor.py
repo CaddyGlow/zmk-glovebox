@@ -4,6 +4,8 @@ import logging
 import re
 from typing import TYPE_CHECKING, Protocol
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
+
 
 if TYPE_CHECKING:
     from .ast_nodes import DTNode
@@ -27,7 +29,7 @@ from .parsing_models import (
 )
 
 
-class SectionExtractor:
+class SectionExtractor(StructlogMixin):
     """Extracts and processes sections from keymap content using configurable delimiters."""
 
     def __init__(
@@ -35,7 +37,7 @@ class SectionExtractor:
         behavior_extractor: "BehaviorExtractorProtocol | None" = None,
     ) -> None:
         """Initialize section extractor with dependencies."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
         self.behavior_extractor = (
             behavior_extractor or create_universal_behavior_extractor_with_converter()
         )

@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 
 if TYPE_CHECKING:
     from glovebox.compilation.cache.compilation_build_cache_service import (
@@ -41,7 +43,7 @@ from glovebox.cli.helpers.profile import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class CompileFirmwareCommand(FirmwareOutputCommand):

@@ -6,10 +6,11 @@ from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.models.base import GloveboxBaseModel
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class BaseResult(GloveboxBaseModel):
@@ -24,9 +25,7 @@ class BaseResult(GloveboxBaseModel):
     def validate_success_consistency(self) -> "BaseResult":
         """Ensure success flag is consistent with errors."""
         if self.errors and self.success:
-            logger.warning(
-                "Result marked as success but has errors. Setting success=False"
-            )
+            logger.warning("result_success_mismatch", has_errors=len(self.errors) > 0)
             self.success = False
         return self
 
@@ -46,7 +45,7 @@ class BaseResult(GloveboxBaseModel):
         if not isinstance(message, str):
             raise ValueError("Message must be a string") from None
         self.messages.append(message)
-        logger.info(message)
+        logger.info("result_message_added", message=message)
 
     def add_error(self, error: str) -> None:
         """Add an error message."""

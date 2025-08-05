@@ -1,6 +1,5 @@
 """Rich-based layout formatter for enhanced keyboard layout displays."""
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from rich.columns import Columns
@@ -10,13 +9,14 @@ from rich.table import Table
 from rich.text import Text
 
 from glovebox.cli.helpers.theme import Colors
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout.models import LayoutBinding, LayoutData
 
 
 if TYPE_CHECKING:
     from glovebox.layout.formatting import LayoutConfig
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class BehaviorColors:

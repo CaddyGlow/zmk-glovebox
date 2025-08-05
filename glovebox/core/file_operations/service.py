@@ -15,13 +15,14 @@ from glovebox.core.file_operations.models import (
     CopyResult,
 )
 from glovebox.core.file_operations.protocols import CopyStrategyProtocol
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 class BaselineStrategy:
     """Standard shutil.copytree strategy for baseline performance."""
 
     def __init__(self) -> None:
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
 
     @property
     def name(self) -> str:
@@ -67,9 +68,9 @@ class BaselineStrategy:
             if progress_callback:
                 total_files, total_bytes = self._calculate_totals(src, exclude_git)
                 self.logger.debug(
-                    "Baseline copy will process %d files (%.1f MB)",
-                    total_files,
-                    total_bytes / (1024 * 1024),
+                    "baseline_copy_processing",
+                    total_files=total_files,
+                    total_mb=total_bytes / (1024 * 1024),
                 )
 
             # Copy files and directories iteratively
@@ -111,11 +112,11 @@ class BaselineStrategy:
             elapsed_time = time.time() - start_time
 
             self.logger.debug(
-                "Baseline copy completed: %s -> %s (%.1f MB in %.2f seconds)",
-                src,
-                dst,
-                total_size / (1024 * 1024),
-                elapsed_time,
+                "baseline_copy_completed",
+                src=str(src),
+                dst=str(dst),
+                total_mb=total_size / (1024 * 1024),
+                elapsed_time=elapsed_time,
             )
 
             return CopyResult(
@@ -128,7 +129,7 @@ class BaselineStrategy:
         except Exception as e:
             elapsed_time = time.time() - start_time
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Baseline copy failed: %s", e, exc_info=exc_info)
+            self.logger.error("baseline_copy_failed", error=str(e), exc_info=exc_info)
             return CopyResult(
                 success=False,
                 bytes_copied=total_size,
@@ -201,7 +202,7 @@ class PipelineStrategy:
     def __init__(self, max_workers: int = 3, size_calculation_workers: int = 4):
         self.max_workers = max_workers
         self.size_calculation_workers = size_calculation_workers
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
 
     @property
     def name(self) -> str:
@@ -263,10 +264,10 @@ class PipelineStrategy:
             dst.mkdir(parents=True, exist_ok=True)
 
             self.logger.debug(
-                "Pipeline copy detected %d components and %d root files: %s",
-                len(components),
-                len(root_files),
-                components + root_files,
+                "pipeline_copy_detected",
+                component_count=len(components),
+                root_file_count=len(root_files),
+                items=components + root_files,
             )
 
             # Phase 1: Calculate all sizes in parallel
@@ -337,18 +338,18 @@ class PipelineStrategy:
                             )
                             progress_callback(progress)
                     except Exception as e:
-                        self.logger.warning("Component/file copy failed: %s", e)
+                        self.logger.warning("component_copy_failed", error=str(e))
                         completed_tasks += 1
 
             elapsed_time = time.time() - start_time
 
             self.logger.debug(
-                "Pipeline copy completed: %s -> %s (%.1f MB in %.2f seconds, %d components)",
-                src,
-                dst,
-                copied_total / (1024 * 1024),
-                elapsed_time,
-                len(copy_tasks),
+                "pipeline_copy_completed",
+                src=str(src),
+                dst=str(dst),
+                total_mb=copied_total / (1024 * 1024),
+                elapsed_time=elapsed_time,
+                component_count=len(copy_tasks),
             )
 
             return CopyResult(
@@ -362,7 +363,7 @@ class PipelineStrategy:
         except Exception as e:
             elapsed_time = time.time() - start_time
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Pipeline copy failed: %s", e, exc_info=exc_info)
+            self.logger.error("pipeline_copy_failed", error=str(e), exc_info=exc_info)
             return CopyResult(
                 success=False,
                 bytes_copied=total_size,
@@ -417,7 +418,9 @@ class PipelineStrategy:
             return self._calculate_directory_size(dst_path)
 
         except Exception as e:
-            self.logger.warning("Failed to copy component %s: %s", component, e)
+            self.logger.warning(
+                "component_copy_failed", component=component, error=str(e)
+            )
             return 0
 
     def _copy_file(self, task: tuple[str, Path, Path, int]) -> int:
@@ -439,7 +442,7 @@ class PipelineStrategy:
             return dst_file.stat().st_size
 
         except Exception as e:
-            self.logger.warning("Failed to copy file %s: %s", file_name, e)
+            self.logger.warning("file_copy_failed", file_name=file_name, error=str(e))
             return 0
 
     def _fallback_copy(
@@ -474,7 +477,9 @@ class PipelineStrategy:
         except Exception as e:
             elapsed_time = time.time() - start_time
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Pipeline fallback copy failed: %s", e, exc_info=exc_info)
+            self.logger.error(
+                "pipeline_fallback_copy_failed", error=str(e), exc_info=exc_info
+            )
             return CopyResult(
                 success=False,
                 bytes_copied=0,
@@ -543,7 +548,7 @@ class FileCopyService:
             max_workers: Number of worker threads for pipeline strategy
         """
         self.use_pipeline = use_pipeline
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
 
         # Initialize strategies
         self.baseline = BaselineStrategy()
@@ -578,7 +583,7 @@ class FileCopyService:
         strategy = self.pipeline if strategy_choice else self.baseline
 
         self.logger.debug(
-            "Using copy strategy '%s' for %s -> %s", strategy.name, src, dst
+            "copy_strategy_selected", strategy=strategy.name, src=str(src), dst=str(dst)
         )
 
         # Execute copy operation

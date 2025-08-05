@@ -250,6 +250,10 @@ class LayoutPatchSystem:
         from pathlib import Path
 
         try:
+            from glovebox.core.structlog_logger import get_struct_logger
+
+            local_logger = get_struct_logger(__name__)
+
             # Create temporary files for patch operation
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
@@ -275,24 +279,20 @@ class LayoutPatchSystem:
                     return result.stdout
                 else:
                     # Fall back to original if patch fails
-                    import logging
-
-                    logger = logging.getLogger(__name__)
-                    exc_info = logger.isEnabledFor(logging.DEBUG)
-                    logger.warning(
-                        "Failed to apply unified diff: %s",
-                        result.stderr,
-                        exc_info=exc_info,
+                    local_logger.warning(
+                        "failed_to_apply_unified_diff",
+                        error=result.stderr.decode()
+                        if result.stderr
+                        else "unknown error",
                     )
                     return original
 
         except Exception as e:
             # Fall back to original on any error
-            import logging
+            from glovebox.core.structlog_logger import get_struct_logger
 
-            logger = logging.getLogger(__name__)
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.warning("Error applying unified diff: %s", e, exc_info=exc_info)
+            local_logger = get_struct_logger(__name__)
+            local_logger.warning("error_applying_unified_diff", error=str(e))
             return original
 
     def _apply_patch_forgiving(

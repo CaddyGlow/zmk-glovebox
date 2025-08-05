@@ -1,12 +1,12 @@
 """USB device flashing functionality."""
 
-import logging
 import platform
 import threading
 import time
 from pathlib import Path
 
 from glovebox.core.errors import FlashError
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.device_detector import create_device_detector
 from glovebox.firmware.flash.flash_operations import create_flash_operations
 from glovebox.firmware.flash.models import (
@@ -19,7 +19,7 @@ from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 from glovebox.protocols.firmware_flasher_protocol import FirmwareFlasherProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def get_device_path(device_name: str) -> str:
@@ -185,7 +185,9 @@ class FirmwareFlasherImpl:
                 try:
                     # Get current devices with their details
                     current_block_devices = self._detector.get_devices()
-                    logger.debug("Found %d devices", len(current_block_devices))
+                    logger.debug(
+                        "found_devices", device_count=len(current_block_devices)
+                    )
 
                     # Check if any existing devices match the query
                     matching_devices = self._detector.list_matching_devices(query)

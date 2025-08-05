@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 
 from glovebox.core.errors import GloveboxError
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.services.base_service import BaseService
 
 
@@ -35,7 +36,7 @@ class OutputHandler(BaseService):
     def __init__(self) -> None:
         """Initialize the output handler."""
         super().__init__(service_name="OutputHandler", service_version="1.0.0")
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
 
     def write_output(self, data: Any, destination: str, format: str = "json") -> None:
         """Write data to the specified destination.

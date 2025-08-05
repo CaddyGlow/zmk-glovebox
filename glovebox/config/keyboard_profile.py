@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 
 from glovebox.config.models import FirmwareConfig, KeyboardConfig
 from glovebox.core.errors import ConfigError
-from glovebox.core.logging import get_logger
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = get_logger(__name__)
+logger = get_struct_logger(__name__)
 
 
 # Module-level cache of loaded configurations

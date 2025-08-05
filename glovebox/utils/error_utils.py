@@ -11,12 +11,13 @@ from glovebox.core.errors import (
     TemplateError,
     USBError,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 # Generic type var for error types that extend GloveboxError
 E = TypeVar("E", bound=GloveboxError)
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def create_error(

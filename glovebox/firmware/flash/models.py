@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.models.results import BaseResult
 
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     pass
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FirmwareSide(str, Enum):

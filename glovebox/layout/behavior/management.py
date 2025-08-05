@@ -4,6 +4,8 @@ import logging
 from collections import Counter
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
+
 from .exceptions import (
     BehaviorRegistrationError,
     BehaviorValidationError,
@@ -18,10 +20,10 @@ if TYPE_CHECKING:
     from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
-class BehaviorManagementService:
+class BehaviorManagementService(StructlogMixin):
     """Centralized service for managing behavior registration and lifecycle."""
 
     def __init__(self) -> None:

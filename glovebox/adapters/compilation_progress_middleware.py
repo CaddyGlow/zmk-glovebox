@@ -1,9 +1,9 @@
 """Compilation progress middleware for Docker output parsing."""
 
-import logging
 import re
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.utils.stream_process import OutputMiddleware
 
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class CompilationProgressMiddleware(OutputMiddleware[str]):
@@ -168,7 +168,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                             }
                         )
                 except (ValueError, IndexError) as e:
-                    logger.debug("Error parsing git objects progress: %s", e)
+                    logger.debug("git_objects_progress_parse_error", error=str(e))
 
             # Parse "Resolving deltas" progress
             deltas_match = self.git_deltas_pattern.search(line_stripped)
@@ -186,7 +186,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                         }
                     )
                 except (ValueError, IndexError) as e:
-                    logger.debug("Error parsing git deltas progress: %s", e)
+                    logger.debug("git_deltas_progress_parse_error", error=str(e))
 
             # Parse build progress during building phase
             # Detect board start
@@ -213,7 +213,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             ]
 
             if any(board_completion_indicators):
-                logger.debug("Board completion detected: %s", line_stripped)
+                logger.debug("board_completion_detected", line=line_stripped)
                 self.progress_context.log("Board build completed")
 
             # Check for overall build completion with improved patterns
@@ -230,7 +230,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
             ]
 
             if any(build_completion_indicators):
-                logger.info("All builds completed")
+                logger.info("all_builds_completed")
                 self.progress_context.log("Compilation completed successfully")
 
             # Cache saving phase is handled by the service layer, not Docker output
@@ -238,7 +238,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
 
         except Exception as e:
             # Don't let progress tracking break the compilation
-            logger.warning("Error processing compilation progress: %s", e)
+            logger.warning("compilation_progress_error", error=str(e))
 
         # Forward interesting Docker output to the progress display
         # This captures build tool output (west, cmake, gcc) that doesn't go through glovebox loggers
@@ -254,7 +254,7 @@ class CompilationProgressMiddleware(OutputMiddleware[str]):
                     self.progress_context.log(line_stripped)
         except Exception as e:
             # Don't let log forwarding break the compilation
-            logger.debug("Error forwarding Docker output to display: %s", e)
+            logger.debug("docker_output_forwarding_error", error=str(e))
 
         return line
 

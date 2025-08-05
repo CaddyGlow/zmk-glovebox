@@ -3,6 +3,7 @@
 import logging
 from typing import TYPE_CHECKING, Any, Protocol
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.models import LayoutData
 from glovebox.layout.parsers.ast_nodes import DTNode
 
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
         def behavior_extractor(self) -> "BehaviorExtractorProtocol": ...
 
 
-class BaseKeymapProcessor:
+class BaseKeymapProcessor(StructlogMixin):
     """Base class for keymap processors with common functionality."""
 
     def __init__(
@@ -33,7 +34,7 @@ class BaseKeymapProcessor:
         section_extractor: "SectionExtractorProtocol | None" = None,
     ) -> None:
         """Initialize base processor."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
         self.section_extractor = section_extractor or create_section_extractor()
 
     def process(self, context: ParsingContext) -> LayoutData | None:

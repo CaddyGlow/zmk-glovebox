@@ -1,6 +1,5 @@
 """Profile configuration editing commands."""
 
-import logging
 import os
 import subprocess
 from pathlib import Path
@@ -20,9 +19,10 @@ from glovebox.config.keyboard_profile import (
     load_keyboard_config,
 )
 from glovebox.config.models.keyboard import KeyboardConfig
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def complete_profile_names(incomplete: str) -> list[str]:

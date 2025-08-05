@@ -9,8 +9,10 @@ from typing import Any
 import typer
 from click.core import Context
 
+from glovebox.core.structlog_logger import get_struct_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_struct_logger(__name__)
 
 
 def with_profile(
@@ -786,11 +788,13 @@ def with_user_config(
                 raise
             except Exception as e:
                 exc_info = logger.isEnabledFor(logging.DEBUG)
-                logger.error("Failed to set up user config: %s", e, exc_info=exc_info)
+                logger.error(
+                    "user_config_setup_failed", error=str(e), exc_info=exc_info
+                )
                 if required:
                     raise typer.Exit(1) from e
                 else:
-                    logger.warning("Continuing without user config due to error: %s", e)
+                    logger.warning("continuing_without_user_config", error=str(e))
 
             return func(*args, **kwargs)
 

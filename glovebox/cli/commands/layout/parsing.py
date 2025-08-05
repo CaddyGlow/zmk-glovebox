@@ -12,9 +12,10 @@ from glovebox.cli.helpers.parameters import (
     OutputFormatOption,
     ProfileOption,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class ParseKeymapCommand(BaseLayoutCommand):

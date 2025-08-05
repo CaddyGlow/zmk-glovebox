@@ -1,13 +1,13 @@
 """Generic registry system for method implementations."""
 
-import logging
 from typing import Any, Generic, TypeVar
 
 from glovebox.config.flash_methods import USBFlashConfig
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 # Use Any for config type since we don't need strict typing here
@@ -32,9 +32,9 @@ class MethodRegistry(Generic[ConfigType, ProtocolType]):
         self._methods[method_name] = implementation
         self._config_types[method_name] = config_type
         logger.debug(
-            "Registered method: %s with config type: %s",
-            method_name,
-            config_type.__name__,
+            "registered_method",
+            method=method_name,
+            config_type=config_type.__name__,
         )
 
     def create_method(

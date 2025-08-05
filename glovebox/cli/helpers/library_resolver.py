@@ -11,12 +11,13 @@ from typing import Any
 from uuid import UUID
 
 from glovebox.config import create_user_config
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.library import create_library_service
 from glovebox.library.models import LibraryEntry
 from glovebox.moergo.client import create_moergo_client
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # Regex pattern to validate UUID format
 UUID_PATTERN = re.compile(
@@ -185,7 +186,9 @@ def _fetch_from_moergo(
 
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Unexpected error during MoErgo fetch: %s", e, exc_info=exc_info)
+        logger.error(
+            "unexpected_error_during_moergo_fetch", error=str(e), exc_info=exc_info
+        )
         return None
 
 

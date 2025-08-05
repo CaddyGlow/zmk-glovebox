@@ -7,13 +7,14 @@ import typer
 
 from glovebox.cli.core.command_base import BaseCommand
 from glovebox.cli.decorators import handle_errors, with_metrics
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.moergo.client import (
     AuthenticationError,
     create_moergo_client,
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 moergo_app = typer.Typer(
     name="moergo",
@@ -89,12 +90,12 @@ class LoginCommand(BaseCommand):
 
         except AuthenticationError as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Authentication failed: %s", e, exc_info=exc_info)
+            self.logger.error("authentication_failed", error=str(e), exc_info=exc_info)
             console.print_error(f"Login failed: {e}")
             raise typer.Exit(1) from None
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Login operation failed: %s", e, exc_info=exc_info)
+            self.logger.error("login_operation_failed", error=str(e), exc_info=exc_info)
             console.print_error(f"Unexpected error: {e}")
             raise typer.Exit(1) from None
 
@@ -115,7 +116,9 @@ class LogoutCommand(BaseCommand):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Logout operation failed: %s", e, exc_info=exc_info)
+            self.logger.error(
+                "logout_operation_failed", error=str(e), exc_info=exc_info
+            )
             console.print_error(f"Error during logout: {e}")
             raise typer.Exit(1) from None
 
@@ -204,7 +207,7 @@ class StatusCommand(BaseCommand):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Status check failed: %s", e, exc_info=exc_info)
+            self.logger.error("status_check_failed", error=str(e), exc_info=exc_info)
             console.print_error(f"Error checking status: {e}")
             raise typer.Exit(1) from None
 

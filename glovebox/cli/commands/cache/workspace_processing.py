@@ -1,7 +1,6 @@
 """Workspace processing utilities for cache commands."""
 
 import json
-import logging
 import shutil
 import tarfile
 import tempfile
@@ -16,6 +15,7 @@ import typer
 from rich.console import Console
 
 from glovebox.cli.components.noop_progress_context import get_noop_progress_context
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def process_workspace_source(

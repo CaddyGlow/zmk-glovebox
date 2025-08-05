@@ -1,10 +1,10 @@
 """ZMK file content generation for keyboard layouts and behaviors."""
 
-import logging
 import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.formatting import GridLayoutFormatter
 from glovebox.layout.models import (
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from glovebox.layout.models import LayoutData
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class ZmkFileContentGenerator:

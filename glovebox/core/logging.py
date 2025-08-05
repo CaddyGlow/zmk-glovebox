@@ -19,6 +19,17 @@ try:
 except ImportError:
     HAS_COLORLOG = False
 
+# Import structlog setup functions
+try:
+    from glovebox.core.structlog_config import (
+        setup_structlog_from_config,
+        setup_structlog_simple,
+    )
+
+    HAS_STRUCTLOG = True
+except ImportError:
+    HAS_STRUCTLOG = False
+
 
 class TUIProgressProtocol(Protocol):
     """Protocol for TUI progress managers (simplified - no log display)."""
@@ -302,6 +313,15 @@ def setup_logging_from_config(config: "LoggingConfig") -> logging.Logger:
     # Prevent propagation to the absolute root logger
     root_logger.propagate = False
 
+    # Initialize structlog with the same configuration
+    if HAS_STRUCTLOG:
+        try:
+            setup_structlog_from_config(config)
+        except Exception as e:
+            # Log error but don't fail - structlog is optional
+            logger = logging.getLogger("glovebox.core.logging")
+            logger.warning("Failed to setup structlog: %s", e)
+
     return root_logger
 
 
@@ -351,5 +371,25 @@ def setup_logging(
 
     # Prevent propagation to the absolute root logger
     root_logger.propagate = False
+
+    # Initialize structlog with simple configuration
+    if HAS_STRUCTLOG:
+        try:
+            # Determine format based on log_format parameter
+            format_type = "console"  # Default
+            if "json" in log_format.lower():
+                format_type = "json"
+            elif "simple" in log_format.lower():
+                format_type = "simple"
+
+            setup_structlog_simple(
+                level=level,
+                log_format=format_type,
+                colored=True,  # Default to colored for console output
+            )
+        except Exception as e:
+            # Log error but don't fail - structlog is optional
+            console_logger = logging.getLogger("glovebox.core.logging")
+            console_logger.warning("Failed to setup structlog: %s", e)
 
     return root_logger

@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.models.docker import DockerUserContext
 from glovebox.protocols.docker_adapter_protocol import (
     DockerAdapterProtocol,
@@ -24,7 +25,7 @@ from glovebox.utils.stream_process import (
 if TYPE_CHECKING:
     from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 logger_rich = logging.getLogger("rich")
 
 
@@ -35,9 +36,7 @@ class LoggerOutputMiddleware(OutputMiddleware[str]):
     prefixes for stdout and stderr streams.
     """
 
-    def __init__(
-        self, logger: logging.Logger, stdout_prefix: str = "", stderr_prefix: str = ""
-    ):
+    def __init__(self, logger, stdout_prefix: str = "", stderr_prefix: str = ""):
         """Initialize middleware with custom prefixes.
 
         Args:
@@ -102,20 +101,20 @@ class DockerAdapter:
                 docker_cmd, check=True, capture_output=True, text=True
             )
             docker_version = result.stdout.strip()
-            logger.debug("Docker is available: %s", docker_version)
+            logger.debug("docker_available", version=docker_version)
             return True
 
         except FileNotFoundError:
-            logger.warning("Docker executable not found in PATH")
+            logger.warning("docker_executable_not_found")
             return False
 
         except subprocess.CalledProcessError as e:
             stderr = e.stderr if hasattr(e, "stderr") and e.stderr else "unknown error"
-            logger.warning("Docker command failed: %s - error: %s", cmd_str, stderr)
+            logger.warning("docker_command_failed", command=cmd_str, error=stderr)
             return False
 
         except Exception as e:
-            logger.warning("Unexpected error checking Docker availability: %s", e)
+            logger.warning("docker_availability_check_failed", error=str(e))
             return False
 
     def _run_with_sudo_fallback(
@@ -140,7 +139,7 @@ class DockerAdapter:
                         "connect: permission denied",
                     ]
                 ):
-                    logger.info("Docker permission denied, trying with sudo...")
+                    logger.info("docker_permission_denied_trying_sudo")
                     sudo_cmd = ["sudo"] + docker_cmd
                     return stream_process.run_command(sudo_cmd, middleware)
             # Re-raise if not a permission error
@@ -165,12 +164,12 @@ class DockerAdapter:
         if user_context and user_context.should_use_user_mapping():
             docker_user_flag = user_context.get_docker_user_flag()
             docker_cmd.extend(["--user", docker_user_flag])
-            logger.debug("Using Docker user mapping: %s", docker_user_flag)
+            logger.debug("docker_user_mapping", user_flag=docker_user_flag)
 
         # Add custom entrypoint if specified
         if entrypoint:
             docker_cmd.extend(["--entrypoint", entrypoint])
-            logger.debug("Using custom entrypoint: %s", entrypoint)
+            logger.debug("docker_custom_entrypoint", entrypoint=entrypoint)
 
         # Add volume mounts
         for host_path, container_path in volumes:
@@ -188,7 +187,7 @@ class DockerAdapter:
             docker_cmd.extend(command)
 
         cmd_str = " ".join(shlex.quote(arg) for arg in docker_cmd)
-        logger.debug("Docker command: %s", cmd_str)
+        logger.debug("docker_command", command=cmd_str)
 
         # Update progress context with container start
         progress_context.log(f"Starting container: {image}")
@@ -215,13 +214,15 @@ class DockerAdapter:
         except FileNotFoundError as e:
             progress_context.log("ERROR: Docker executable not found")
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
-            logger.error("Docker executable not found: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("docker_executable_not_found", error=str(e), exc_info=exc_info)
             raise error from e
 
         except subprocess.SubprocessError as e:
             progress_context.log(f"ERROR: Docker subprocess error: {e}")
             error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
-            logger.error("Docker subprocess error: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("docker_subprocess_error", error=str(e), exc_info=exc_info)
             raise error from e
 
         except Exception as e:
@@ -236,7 +237,8 @@ class DockerAdapter:
                     "env_vars_count": len(environment),
                 },
             )
-            logger.error("Unexpected error running Docker container: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("docker_container_run_failed", error=str(e), exc_info=exc_info)
             raise error from e
 
     def build_image(
@@ -260,7 +262,7 @@ class DockerAdapter:
                 None,
                 {"image": image_full_name},
             )
-            logger.error("Docker not available for image build: %s", image_full_name)
+            logger.error("docker_not_available_for_build", image=image_full_name)
             raise error
 
         # Validate dockerfile directory
@@ -273,7 +275,7 @@ class DockerAdapter:
                 {"dockerfile_dir": str(dockerfile_dir), "image": image_full_name},
             )
             logger.error(
-                "Invalid Dockerfile directory for image build: %s", dockerfile_dir
+                "invalid_dockerfile_directory", dockerfile_dir=str(dockerfile_dir)
             )
             raise error
 
@@ -286,7 +288,7 @@ class DockerAdapter:
                 None,
                 {"dockerfile_path": str(dockerfile_path), "image": image_full_name},
             )
-            logger.error("Dockerfile not found at %s for image build", dockerfile_path)
+            logger.error("dockerfile_not_found", dockerfile_path=str(dockerfile_path))
             raise error
 
         # Build the Docker command
@@ -304,8 +306,8 @@ class DockerAdapter:
 
         # Format command for logging
         cmd_str = " ".join(shlex.quote(arg) for arg in docker_cmd)
-        logger.info("Building Docker image: %s", image_full_name)
-        logger.debug("Docker command: %s", cmd_str)
+        logger.info("building_docker_image", image=image_full_name)
+        logger.debug("docker_command", command=cmd_str)
 
         # Update progress context with build start
         progress_context.log(f"Building Docker image: {image_full_name}")
@@ -333,13 +335,21 @@ class DockerAdapter:
                 "ERROR: Docker executable not found during image build"
             )
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
-            logger.error("Docker executable not found during image build: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "docker_executable_not_found_during_build",
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
         except subprocess.SubprocessError as e:
             progress_context.log(f"ERROR: Docker subprocess error during build: {e}")
             error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
-            logger.error("Docker subprocess error: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "docker_subprocess_error_during_build", error=str(e), exc_info=exc_info
+            )
             raise error from e
 
         except Exception as e:
@@ -351,7 +361,13 @@ class DockerAdapter:
                 {"image": image_full_name, "dockerfile_dir": str(dockerfile_dir)},
             )
 
-            logger.error("Unexpected Docker build error for %s: %s", image_full_name, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "docker_build_error",
+                image=image_full_name,
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def image_exists(self, image_name: str, image_tag: str = "latest") -> bool:
@@ -361,8 +377,7 @@ class DockerAdapter:
         # Check Docker availability
         if not self.is_available():
             logger.warning(
-                "Docker not available, cannot check image existence: %s",
-                image_full_name,
+                "docker_not_available_for_image_check", image=image_full_name
             )
             return False
 
@@ -376,7 +391,7 @@ class DockerAdapter:
                 docker_cmd, check=True, capture_output=True, text=True
             )
 
-            logger.debug("Docker image exists: %s", image_full_name)
+            logger.debug("docker_image_exists", image=image_full_name)
             return True
 
         except subprocess.CalledProcessError as e:
@@ -390,28 +405,26 @@ class DockerAdapter:
                 ]
             ):
                 try:
-                    logger.debug(
-                        "Docker permission denied, trying with sudo for image check..."
-                    )
+                    logger.debug("docker_permission_denied_trying_sudo_for_image_check")
                     sudo_cmd = ["sudo"] + docker_cmd
                     subprocess.run(sudo_cmd, check=True, capture_output=True, text=True)
-                    logger.debug("Docker image exists (with sudo): %s", image_full_name)
+                    logger.debug("docker_image_exists_with_sudo", image=image_full_name)
                     return True
                 except subprocess.CalledProcessError:
                     # Image doesn't exist even with sudo
-                    logger.debug("Docker image does not exist: %s", image_full_name)
+                    logger.debug("docker_image_does_not_exist", image=image_full_name)
                     return False
             else:
                 # Image doesn't exist (inspect returns non-zero exit code)
-                logger.debug("Docker image does not exist: %s", image_full_name)
+                logger.debug("docker_image_does_not_exist", image=image_full_name)
                 return False
 
         except FileNotFoundError:
-            logger.warning("Docker executable not found during image check")
+            logger.warning("docker_executable_not_found_during_image_check")
             return False
 
         except Exception as e:
-            logger.warning("Unexpected error checking Docker image existence: %s", e)
+            logger.warning("docker_image_existence_check_failed", error=str(e))
             return False
 
     def pull_image(
@@ -433,7 +446,7 @@ class DockerAdapter:
                 None,
                 {"image": image_full_name},
             )
-            logger.error("Docker not available for image pull: %s", image_full_name)
+            logger.error("docker_not_available_for_pull", image=image_full_name)
             raise error
 
         # Build the Docker command
@@ -441,8 +454,8 @@ class DockerAdapter:
 
         # Format command for logging
         cmd_str = " ".join(shlex.quote(arg) for arg in docker_cmd)
-        logger.info("Pulling Docker image: %s", image_full_name)
-        logger.debug("Docker command: %s", cmd_str)
+        logger.info("pulling_docker_image", image=image_full_name)
+        logger.debug("docker_command", command=cmd_str)
 
         # Update progress context with pull start
         progress_context.log(f"Pulling Docker image: {image_full_name}")
@@ -468,13 +481,21 @@ class DockerAdapter:
         except FileNotFoundError as e:
             progress_context.log("ERROR: Docker executable not found during image pull")
             error = create_docker_error(f"Docker executable not found: {e}", cmd_str, e)
-            logger.error("Docker executable not found during image pull: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "docker_executable_not_found_during_pull",
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
         except subprocess.SubprocessError as e:
             progress_context.log(f"ERROR: Docker subprocess error during pull: {e}")
             error = create_docker_error(f"Docker subprocess error: {e}", cmd_str, e)
-            logger.error("Docker subprocess error: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "docker_subprocess_error_during_pull", error=str(e), exc_info=exc_info
+            )
             raise error from e
 
         except Exception as e:
@@ -486,7 +507,13 @@ class DockerAdapter:
                 {"image": image_full_name},
             )
 
-            logger.error("Unexpected Docker pull error for %s: %s", image_full_name, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "docker_pull_error",
+                image=image_full_name,
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
 

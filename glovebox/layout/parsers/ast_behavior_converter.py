@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.models import (
     CapsWordBehavior,
     ComboBehavior,
@@ -16,10 +17,10 @@ from glovebox.layout.models import (
 from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTValueType
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
-class ASTBehaviorConverter:
+class ASTBehaviorConverter(StructlogMixin):
     """Convert device tree AST nodes directly to behavior model objects."""
 
     def __init__(self, defines: dict[str, str] | None = None) -> None:
@@ -28,7 +29,7 @@ class ASTBehaviorConverter:
         Args:
             defines: Optional dictionary of preprocessor defines for resolution
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
         self.defines = defines or {}
 
     def _resolve_token(self, token: str) -> str:

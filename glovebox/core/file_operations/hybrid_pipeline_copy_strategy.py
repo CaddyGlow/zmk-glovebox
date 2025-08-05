@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from glovebox.core.file_operations.models import CopyProgress, CopyResult
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FastPipelineCopyStrategy:
@@ -17,7 +18,7 @@ class FastPipelineCopyStrategy:
 
     def __init__(self, max_workers: int = 3):
         self.max_workers = max_workers
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
 
     @property
     def name(self) -> str:

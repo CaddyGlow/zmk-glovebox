@@ -24,6 +24,7 @@ from glovebox.cli.helpers.parameter_helpers import (
 )
 from glovebox.cli.helpers.parameter_types import InputResult, OutputResult
 from glovebox.cli.helpers.theme import ThemedConsole, get_themed_console
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 T = TypeVar("T")
@@ -41,7 +42,7 @@ class BaseCommand(ABC):
 
     def __init__(self) -> None:
         """Initialize base command with logging and console."""
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = get_struct_logger(self.__class__.__name__)
         self._console: ThemedConsole | None = None
 
     @property
@@ -60,7 +61,12 @@ class BaseCommand(ABC):
         """
         # CLAUDE.md pattern: debug-aware stack traces
         exc_info = self.logger.isEnabledFor(logging.DEBUG)
-        self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
+        self.logger.error(
+            "service_operation_failed",
+            operation=operation,
+            error=str(error),
+            exc_info=exc_info,
+        )
         self.console.print_error(f"Failed to {operation}: {error}")
         raise typer.Exit(1) from error
 
@@ -367,7 +373,7 @@ class ServiceCommand(BaseCommand):
             Service instance
         """
         if service_name not in self._services:
-            self.logger.debug("Creating service: %s", service_name)
+            self.logger.debug("creating_service", service_name=service_name)
             self._services[service_name] = factory(*args, **kwargs)
         return self._services[service_name]  # type: ignore[no-any-return]
 
@@ -408,7 +414,9 @@ class ServiceCommand(BaseCommand):
             error: Cache exception
             operation: Operation description
         """
-        self.logger.warning("Cache error during %s: %s", operation, error)
+        self.logger.warning(
+            "cache_operation_error", operation=operation, error=str(error)
+        )
         self.console.print_warning(
             f"Cache operation failed ({operation}), continuing without cache"
         )

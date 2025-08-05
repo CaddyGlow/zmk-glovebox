@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from glovebox.core.errors import FileSystemError
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.protocols.file_adapter_protocol import FileAdapterProtocol
 from glovebox.utils.error_utils import create_file_error
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FileAdapter:
@@ -25,19 +26,22 @@ class FileAdapter:
             return content
         except FileNotFoundError as e:
             error = create_file_error(path, "read_text", e, {"encoding": encoding})
-            logger.error("File not found: %s", path)
+            logger.error("file_not_found", path=str(path))
             raise error from e
         except PermissionError as e:
             error = create_file_error(path, "read_text", e, {"encoding": encoding})
-            logger.error("Permission denied reading file: %s", path)
+            logger.error("file_read_permission_denied", path=str(path))
             raise error from e
         except UnicodeDecodeError as e:
             error = create_file_error(path, "read_text", e, {"encoding": encoding})
-            logger.error("Encoding error reading file %s: %s", path, e)
+            logger.error("file_encoding_error", path=str(path), error=str(e))
             raise error from e
         except Exception as e:
             error = create_file_error(path, "read_text", e, {"encoding": encoding})
-            logger.error("Error reading file %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "file_read_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def write_text(self, path: Path, content: str, encoding: str = "utf-8") -> None:
@@ -55,7 +59,7 @@ class FileAdapter:
                 e,
                 {"encoding": encoding, "content_length": len(content)},
             )
-            logger.error("Permission denied writing file: %s", path)
+            logger.error("file_write_permission_denied", path=str(path))
             raise error from e
         except Exception as e:
             error = create_file_error(
@@ -64,7 +68,10 @@ class FileAdapter:
                 e,
                 {"encoding": encoding, "content_length": len(content)},
             )
-            logger.error("Error writing file %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "file_write_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def read_binary(self, path: Path) -> bytes:
@@ -75,15 +82,21 @@ class FileAdapter:
             return content
         except FileNotFoundError as e:
             error = create_file_error(path, "read_binary", e, {})
-            logger.error("File not found: %s", path)
+            logger.error("binary_file_not_found", path=str(path))
             raise error from e
         except PermissionError as e:
             error = create_file_error(path, "read_binary", e, {})
-            logger.error("Permission denied reading file: %s", path)
+            logger.error("binary_file_read_permission_denied", path=str(path))
             raise error from e
         except Exception as e:
             error = create_file_error(path, "read_binary", e, {})
-            logger.error("Error reading binary file %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "binary_file_read_error",
+                path=str(path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def write_binary(self, path: Path, content: bytes) -> None:
@@ -101,7 +114,7 @@ class FileAdapter:
                 e,
                 {"content_length": len(content)},
             )
-            logger.error("Permission denied writing file: %s", path)
+            logger.error("binary_file_write_permission_denied", path=str(path))
             raise error from e
         except Exception as e:
             error = create_file_error(
@@ -110,7 +123,13 @@ class FileAdapter:
                 e,
                 {"content_length": len(content)},
             )
-            logger.error("Error writing binary file %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "binary_file_write_error",
+                path=str(path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def read_json(self, path: Path, encoding: str = "utf-8") -> dict[str, Any]:
@@ -126,14 +145,17 @@ class FileAdapter:
             return data if isinstance(data, dict) else {"data": data}
         except json.JSONDecodeError as e:
             error = create_file_error(path, "read_json", e, {"encoding": encoding})
-            logger.error("Invalid JSON in file %s: %s", path, e)
+            logger.error("json_decode_error", path=str(path), error=str(e))
             raise error from e
         except FileSystemError:
             # Let FileSystemError from read_text pass through
             raise
         except Exception as e:
             error = create_file_error(path, "read_json", e, {"encoding": encoding})
-            logger.error("Error reading JSON file %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "json_read_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def write_json(
@@ -169,7 +191,7 @@ class FileAdapter:
                     "data_type": type(data).__name__,
                 },
             )
-            logger.error("Cannot serialize data to JSON for file %s: %s", path, e)
+            logger.error("json_serialization_error", path=str(path), error=str(e))
             raise error from e
         except FileSystemError:
             # Let FileSystemError from write_text pass through
@@ -185,7 +207,10 @@ class FileAdapter:
                     "data_type": type(data).__name__,
                 },
             )
-            logger.error("Error writing JSON file %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "json_write_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def check_exists(self, path: Path) -> bool:
@@ -210,13 +235,19 @@ class FileAdapter:
             error = create_file_error(
                 path, "mkdir", e, {"parents": parents, "exist_ok": exist_ok}
             )
-            logger.error("Permission denied creating directory: %s", path)
+            logger.error("directory_create_permission_denied", path=str(path))
             raise error from e
         except Exception as e:
             error = create_file_error(
                 path, "mkdir", e, {"parents": parents, "exist_ok": exist_ok}
             )
-            logger.error("Error creating directory %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "directory_create_error",
+                path=str(path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def copy_file(self, src: Path, dst: Path) -> None:
@@ -230,13 +261,15 @@ class FileAdapter:
             error = create_file_error(
                 src, "copy_file", e, {"source": str(src), "destination": str(dst)}
             )
-            logger.error("Source file not found: %s", src)
+            logger.error("copy_source_file_not_found", source=str(src))
             raise error from e
         except PermissionError as e:
             error = create_file_error(
                 src, "copy_file", e, {"source": str(src), "destination": str(dst)}
             )
-            logger.error("Permission denied copying file: %s -> %s", src, dst)
+            logger.error(
+                "copy_permission_denied", source=str(src), destination=str(dst)
+            )
             raise error from e
         except FileSystemError:
             # Let FileSystemError from mkdir pass through
@@ -245,7 +278,14 @@ class FileAdapter:
             error = create_file_error(
                 src, "copy_file", e, {"source": str(src), "destination": str(dst)}
             )
-            logger.error("Error copying file %s to %s: %s", src, dst, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "file_copy_error",
+                source=str(src),
+                destination=str(dst),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def list_files(self, path: Path, pattern: str = "*") -> list[Path]:
@@ -258,7 +298,7 @@ class FileAdapter:
                     ValueError("Not a directory"),
                     {"pattern": pattern},
                 )
-                logger.error("Path is not a directory: %s", path)
+                logger.error("path_not_directory", path=str(path))
                 raise error
 
             files = list(path.glob(pattern))
@@ -269,7 +309,10 @@ class FileAdapter:
             raise
         except Exception as e:
             error = create_file_error(path, "list_files", e, {"pattern": pattern})
-            logger.error("Error listing files in %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "list_files_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def list_directory(self, path: Path) -> list[Path]:
@@ -279,7 +322,7 @@ class FileAdapter:
                 error = create_file_error(
                     path, "list_directory", ValueError("Not a directory"), {}
                 )
-                logger.error("Path is not a directory: %s", path)
+                logger.error("path_not_directory", path=str(path))
                 raise error
 
             items = list(path.iterdir())
@@ -289,7 +332,10 @@ class FileAdapter:
             raise
         except Exception as e:
             error = create_file_error(path, "list_directory", e, {})
-            logger.error("Error listing directory %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "list_directory_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def check_overwrite_permission(self, files: list[Path]) -> bool:
@@ -315,7 +361,7 @@ class FileAdapter:
         if response == "y":
             return True
         else:
-            logger.warning("Operation cancelled by user (or non-interactive 'No').")
+            logger.warning("operation_cancelled_by_user")
             return False
 
     def remove_file(self, path: Path) -> None:
@@ -325,12 +371,15 @@ class FileAdapter:
             path.unlink(missing_ok=True)
         except PermissionError as e:
             error = create_file_error(path, "remove_file", e, {})
-            logger.error("Permission denied removing file: %s", path)
+            logger.error("remove_file_permission_denied", path=str(path))
             raise error from e
         except Exception as e:
             # Catch other potential errors like IsADirectoryError
             error = create_file_error(path, "remove_file", e, {})
-            logger.error("Error removing file %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "remove_file_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def remove_dir(self, path: Path, recursive: bool = True) -> None:
@@ -356,7 +405,7 @@ class FileAdapter:
                     ValueError("Not a directory"),
                     {"recursive": recursive},
                 )
-                logger.error("Path is not a directory: %s", path)
+                logger.error("path_not_directory", path=str(path))
                 raise error
 
             if recursive:
@@ -367,15 +416,21 @@ class FileAdapter:
 
         except PermissionError as e:
             error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
-            logger.error("Permission denied removing directory: %s", path)
+            logger.error("remove_directory_permission_denied", path=str(path))
             raise error from e
         except OSError as e:
             error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
-            logger.error("OS error removing directory %s: %s", path, e)
+            logger.error("remove_directory_os_error", path=str(path), error=str(e))
             raise error from e
         except Exception as e:
             error = create_file_error(path, "remove_dir", e, {"recursive": recursive})
-            logger.error("Error removing directory %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "remove_directory_error",
+                path=str(path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def create_timestamped_backup(self, file_path: Path) -> Path | None:
@@ -393,7 +448,13 @@ class FileAdapter:
             return backup_path
         except Exception as e:
             error = create_file_error(file_path, "create_timestamped_backup", e, {})
-            logger.error("Failed to create backup of %s: %s", file_path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "backup_creation_failed",
+                file_path=str(file_path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             return None
 
     def get_file_size(self, path: Path) -> int:
@@ -413,15 +474,18 @@ class FileAdapter:
             return file_size
         except FileNotFoundError as e:
             error = create_file_error(path, "get_file_size", e)
-            logger.error("File not found: %s", path)
+            logger.error("get_size_file_not_found", path=str(path))
             raise error from e
         except PermissionError as e:
             error = create_file_error(path, "get_file_size", e)
-            logger.error("Permission denied accessing file: %s", path)
+            logger.error("get_size_permission_denied", path=str(path))
             raise error from e
         except Exception as e:
             error = create_file_error(path, "get_file_size", e)
-            logger.error("Error getting file size %s: %s", path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "get_file_size_error", path=str(path), error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def sanitize_filename(self, filename: str) -> str:
@@ -438,7 +502,13 @@ class FileAdapter:
 
             return safe_name
         except Exception as e:
-            logger.error("Error sanitizing filename '%s': %s", filename, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "filename_sanitization_error",
+                filename=filename,
+                error=str(e),
+                exc_info=exc_info,
+            )
             return "unnamed"
 
 

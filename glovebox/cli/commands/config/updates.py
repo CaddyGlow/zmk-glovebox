@@ -1,13 +1,12 @@
 """Configuration update check commands."""
 
-import logging
-
 import typer
 
 from glovebox.cli.decorators import handle_errors
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 @handle_errors

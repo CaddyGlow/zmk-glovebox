@@ -1,9 +1,10 @@
 """High-level flash operations using OS abstraction layer."""
 
-import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
+
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ from glovebox.firmware.flash.models import BlockDevice
 from glovebox.firmware.flash.os_adapters import create_flash_os_adapter
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FlashOperations:
@@ -61,13 +62,17 @@ class FlashOperations:
         for attempt in range(max_retries):
             try:
                 logger.info(
-                    f"Attempt {attempt + 1}/{max_retries}: Mounting device {device.name} ({device_identifier})..."
+                    "mounting_device_attempt",
+                    attempt=attempt + 1,
+                    max_retries=max_retries,
+                    device_name=device.name,
+                    device_identifier=device_identifier,
                 )
 
                 # Mount the device
                 mount_points = self._os_adapter.mount_device(device)
                 if not mount_points:
-                    logger.warning(f"No mount points returned for device {device.name}")
+                    logger.warning("no_mount_points_returned", device_name=device.name)
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                         continue
@@ -75,21 +80,25 @@ class FlashOperations:
                         return False
 
                 mount_point = mount_points[0]  # Use first mount point
-                logger.info(f"Device {device_identifier} mounted at {mount_point}")
+                logger.info(
+                    "device_mounted",
+                    device_identifier=device_identifier,
+                    mount_point=mount_point,
+                )
 
                 # Copy the firmware file
                 success = self._os_adapter.copy_firmware_file(
                     firmware_path, mount_point
                 )
                 if not success:
-                    logger.error(f"Failed to copy firmware to {mount_point}")
+                    logger.error("failed_to_copy_firmware", mount_point=mount_point)
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                         continue
                     else:
                         return False
 
-                logger.info("Firmware file copied successfully.")
+                logger.info("firmware_file_copied_successfully")
 
                 # Sync filesystem
                 self._os_adapter.sync_filesystem(mount_point)
@@ -98,17 +107,21 @@ class FlashOperations:
                 try:
                     self._os_adapter.unmount_device(device)
                 except Exception as e:
-                    logger.debug(f"Unmount failed (likely expected): {e}")
+                    logger.debug("unmount_failed_likely_expected", error=str(e))
 
                 return True  # Flash successful
 
             except PermissionError as e:
-                logger.error(f"Permission error during mount/flash: {e}")
+                logger.error("permission_error_during_mount_flash", error=str(e))
                 raise FlashError(f"Permission denied: {e}") from e
             except OSError as e:
-                logger.error(f"OS error during mount/flash attempt {attempt + 1}: {e}")
+                logger.error(
+                    "os_error_during_mount_flash_attempt",
+                    attempt=attempt + 1,
+                    error=str(e),
+                )
                 if attempt < max_retries - 1:
-                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    logger.info("retrying_after_delay", retry_delay=retry_delay)
                     time.sleep(retry_delay)
                 else:
                     raise FlashError(
@@ -116,10 +129,12 @@ class FlashOperations:
                     ) from e
             except Exception as e:
                 logger.error(
-                    f"Unexpected error during mount/flash attempt {attempt + 1}: {e}"
+                    "unexpected_error_during_mount_flash_attempt",
+                    attempt=attempt + 1,
+                    error=str(e),
                 )
                 if attempt < max_retries - 1:
-                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    logger.info("retrying_after_delay", retry_delay=retry_delay)
                     time.sleep(retry_delay)
                 else:
                     raise FlashError(

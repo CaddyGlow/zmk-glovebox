@@ -16,10 +16,11 @@ from glovebox.cli.helpers.output_formatter import OutputFormatter
 from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.cli.helpers.theme import Colors, Icons
 from glovebox.config.user_config import UserConfig
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.utils.diagnostics import collect_all_diagnostics
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class StatusCommand(BaseCommand):

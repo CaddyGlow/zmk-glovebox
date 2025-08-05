@@ -17,6 +17,7 @@ from glovebox.cli.helpers.parameters import (
     OutputFormatOption,
     complete_field_paths,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout.models import LayoutBinding, LayoutData
 from glovebox.layout.utils.field_parser import (
     extract_field_value_from_model,
@@ -35,7 +36,7 @@ from glovebox.layout.utils.layer_references import (
 from glovebox.layout.utils.variable_resolver import VariableResolver
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 console = Console()
 
 

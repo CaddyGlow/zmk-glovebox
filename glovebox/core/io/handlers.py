@@ -15,10 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from glovebox.core.errors import GloveboxError
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.models.base import GloveboxBaseModel
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class InputError(GloveboxError):

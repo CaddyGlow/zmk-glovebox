@@ -11,11 +11,12 @@ from typing import Any
 import typer
 
 from glovebox.core.errors import BuildError, ConfigError, FlashError, KeymapError
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 __all__ = ["handle_errors", "print_stack_trace_if_verbose"]
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def handle_errors(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -36,31 +37,32 @@ def handle_errors(func: Callable[..., Any]) -> Callable[..., Any]:
         try:
             return func(*args, **kwargs)
         except KeymapError as e:
-            logger.error(f"Keymap error: {e}")
+            logger.error("keymap_error", error=str(e))
             print_stack_trace_if_verbose()
             raise typer.Exit(1) from e
         except ConfigError as e:
-            logger.error(f"Configuration error: {e}")
+            logger.error("configuration_error", error=str(e))
             print_stack_trace_if_verbose()
             raise typer.Exit(1) from e
         except BuildError as e:
-            logger.error(f"Build error: {e}")
+            logger.error("build_error", error=str(e))
             print_stack_trace_if_verbose()
             raise typer.Exit(1) from e
         except FlashError as e:
-            logger.error(f"Flash error: {e}")
+            logger.error("flash_error", error=str(e))
             print_stack_trace_if_verbose()
             raise typer.Exit(1) from e
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON: {e}")
+            logger.error("invalid_json", error=str(e))
             print_stack_trace_if_verbose()
             raise typer.Exit(1) from e
         except FileNotFoundError as e:
-            logger.error(f"File not found: {e}")
+            logger.error("file_not_found", error=str(e))
             print_stack_trace_if_verbose()
             raise typer.Exit(1) from e
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("unexpected_error", error=str(e), exc_info=exc_info)
             print_stack_trace_if_verbose()
             raise typer.Exit(1) from e
 

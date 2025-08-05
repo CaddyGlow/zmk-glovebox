@@ -7,6 +7,7 @@ from typing import Any
 from glovebox.config.models.user import UserConfigData
 from glovebox.core.cache import get_shared_cache_instance
 from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.library.fetchers import FetcherRegistry
 from glovebox.library.models import (
     FetchRequest,
@@ -21,7 +22,7 @@ from glovebox.library.repository import LibraryRepository
 from glovebox.moergo.client import MoErgoClient
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class LibraryService:
@@ -150,7 +151,7 @@ class LibraryService:
             except Exception as e:
                 exc_info = logger.isEnabledFor(logging.DEBUG)
                 logger.error(
-                    "Failed to store layout in repository: %s", e, exc_info=exc_info
+                    "layout_repository_store_failed", error=str(e), exc_info=exc_info
                 )
                 return FetchResult(
                     success=False,
@@ -159,7 +160,9 @@ class LibraryService:
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Unexpected error in fetch_layout: %s", e, exc_info=exc_info)
+            logger.error(
+                "fetch_layout_unexpected_error", error=str(e), exc_info=exc_info
+            )
             return FetchResult(
                 success=False,
                 errors=[f"Unexpected error during fetch: {e}"],
@@ -246,9 +249,9 @@ class LibraryService:
                     except Exception as e:
                         exc_info = logger.isEnabledFor(logging.DEBUG)
                         logger.warning(
-                            "Failed to get metadata for layout %s: %s",
-                            layout_uuid,
-                            e,
+                            "layout_metadata_fetch_failed",
+                            layout_uuid=layout_uuid,
+                            error=str(e),
                             exc_info=exc_info,
                         )
                         continue
@@ -264,7 +267,7 @@ class LibraryService:
 
             except Exception as e:
                 exc_info = logger.isEnabledFor(logging.DEBUG)
-                logger.error("Search operation failed: %s", e, exc_info=exc_info)
+                logger.error("search_operation_failed", error=str(e), exc_info=exc_info)
                 return SearchResult(
                     success=False,
                     errors=[f"Search failed: {e}"],
@@ -272,7 +275,9 @@ class LibraryService:
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Unexpected error in search_layouts: %s", e, exc_info=exc_info)
+            logger.error(
+                "search_layouts_unexpected_error", error=str(e), exc_info=exc_info
+            )
             return SearchResult(
                 success=False,
                 errors=[f"Unexpected error during search: {e}"],

@@ -5,6 +5,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
+
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
@@ -15,7 +17,7 @@ from glovebox.layout.models import LayoutData
 from glovebox.protocols import FileAdapterProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 T = TypeVar("T")
 
 

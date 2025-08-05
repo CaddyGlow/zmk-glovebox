@@ -1,7 +1,8 @@
 """Functional utilities for analyzing behavior usage in layouts."""
 
-import logging
 from typing import TYPE_CHECKING
+
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
     from glovebox.protocols.behavior_protocols import BehaviorRegistryProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def _analyze_behavior_param_usage(layout_data: "LayoutData", behavior_code: str) -> int:

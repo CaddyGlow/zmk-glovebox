@@ -3,8 +3,10 @@
 import logging
 from typing import Protocol, runtime_checkable
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_struct_logger(__name__)
 
 
 @runtime_checkable
@@ -28,11 +30,13 @@ class BaseServiceProtocol(Protocol):
         ...
 
 
-class BaseService:
+class BaseService(StructlogMixin):
     """Base implementation class for Glovebox services.
 
     Provides common functionality for all service implementations.
     Services should inherit from this class to gain common behavior.
+
+    This class now includes structured logging capabilities through StructlogMixin.
 
     Attributes:
         _service_name: The name of this service
@@ -46,6 +50,7 @@ class BaseService:
             service_name: The name of this service
             service_version: The version of this service
         """
+        super().__init__()
         self._service_name = service_name
         self._service_version = service_version
 

@@ -7,10 +7,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.library.models import FetchResult, LibraryEntry, LibrarySource
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FileFetcher:
@@ -55,7 +56,10 @@ class FileFetcher:
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Failed to get file metadata for %s: %s", source, e, exc_info=exc_info
+                "file_metadata_fetch_failed",
+                source=source,
+                error=str(e),
+                exc_info=exc_info,
             )
             return None
 
@@ -86,7 +90,7 @@ class FileFetcher:
                     f"Source file has unsupported extension: {source_path.suffix}"
                 )
 
-            logger.info("Importing layout from %s", source_path)
+            logger.info("importing_layout", source_path=str(source_path))
 
             # Read and process file based on type
             try:
@@ -179,10 +183,10 @@ class FileFetcher:
             )
 
             logger.info(
-                "Successfully imported layout '%s' from %s to %s",
-                title or name,
-                source_path,
-                target_path,
+                "layout_import_successful",
+                title=title or name,
+                source_path=str(source_path),
+                target_path=str(target_path),
             )
             return FetchResult(
                 success=True, entry=entry, file_path=target_path, warnings=warnings
@@ -191,20 +195,29 @@ class FileFetcher:
         except PermissionError as e:
             error_msg = f"Permission denied accessing file: {e}"
             errors.append(error_msg)
-            logger.error("Permission error importing from %s: %s", source, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "import_permission_error",
+                source=source,
+                error=str(e),
+                exc_info=exc_info,
+            )
             return FetchResult(success=False, errors=errors)
 
         except OSError as e:
             error_msg = f"File system error: {e}"
             errors.append(error_msg)
-            logger.error("OS error importing from %s: %s", source, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "import_os_error", source=source, error=str(e), exc_info=exc_info
+            )
             return FetchResult(success=False, errors=errors)
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             error_msg = f"Failed to import layout from file: {e}"
             errors.append(error_msg)
-            logger.error(error_msg, exc_info=exc_info)
+            logger.error("layout_import_failed", error=str(e), exc_info=exc_info)
             return FetchResult(success=False, errors=errors)
 
 

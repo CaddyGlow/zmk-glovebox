@@ -14,9 +14,10 @@ from glovebox.compilation.cache import (
 )
 from glovebox.config.user_config import UserConfig, create_user_config
 from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def get_cache_manager_and_service(

@@ -19,7 +19,9 @@ class CredentialManager(BaseService):
 
     def __init__(self, credential_config: MoErgoCredentialConfig | None = None):
         super().__init__("CredentialManager", "1.0.0")
-        self.logger = logging.getLogger(__name__)
+        from glovebox.core.structlog_logger import get_struct_logger
+
+        self.logger = get_struct_logger(__name__)
         self.config = credential_config or MoErgoCredentialConfig()
 
         # Ensure config directory exists
@@ -46,7 +48,7 @@ class CredentialManager(BaseService):
         """Get encryption key from keyring or create new one."""
         keyring = self._try_keyring_import()
         if not keyring:
-            self.logger.warning("No keyring available for encryption key storage")
+            self.logger.warning("no_keyring_available_for_encryption")
             return None
 
         try:
@@ -68,7 +70,7 @@ class CredentialManager(BaseService):
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error(
-                "Failed to manage encryption key: %s", e, exc_info=exc_info
+                "encryption_key_management_failed", error=str(e), exc_info=exc_info
             )
             return None
 
@@ -104,7 +106,7 @@ class CredentialManager(BaseService):
 
         # Set restrictive permissions
         self.credentials_file.chmod(self.config.get_file_permissions_octal())
-        self.logger.info("Credentials stored with encryption")
+        self.logger.info("credentials_stored_with_encryption")
 
     def load_credentials(self) -> UserCredentials | None:
         """Load and decrypt credentials."""
@@ -114,7 +116,7 @@ class CredentialManager(BaseService):
         # Get encryption key
         key = self._get_or_create_encryption_key()
         if not key:
-            self.logger.error("Cannot load credentials without encryption key")
+            self.logger.error("cannot_load_credentials_no_encryption_key")
             return None
 
         try:
@@ -134,7 +136,7 @@ class CredentialManager(BaseService):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Error loading credentials: %s", e, exc_info=exc_info)
+            self.logger.error("credentials_load_error", error=str(e), exc_info=exc_info)
             return None
 
     def store_tokens(self, tokens: AuthTokens) -> None:
@@ -183,7 +185,7 @@ class CredentialManager(BaseService):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Error loading tokens: %s", e, exc_info=exc_info)
+            self.logger.error("tokens_load_error", error=str(e), exc_info=exc_info)
             return None
 
     def clear_credentials(self) -> None:
@@ -197,7 +199,7 @@ class CredentialManager(BaseService):
             except Exception as e:
                 exc_info = self.logger.isEnabledFor(logging.DEBUG)
                 self.logger.debug(
-                    "Error clearing encryption key: %s", e, exc_info=exc_info
+                    "encryption_key_clear_error", error=str(e), exc_info=exc_info
                 )
 
         # Clear files

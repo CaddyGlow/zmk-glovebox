@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import Any, assert_never
 
 from glovebox.core.errors import TemplateError
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.protocols.template_adapter_protocol import TemplateAdapterProtocol
 from glovebox.utils.error_utils import create_template_error
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class TemplateAdapter:
@@ -67,7 +68,7 @@ class TemplateAdapter:
                 e,
                 {"context_keys": list(context.keys())},
             )
-            logger.error("Template not found: %s", template_path)
+            logger.error("template_not_found", template_path=str(template_path))
             raise error from e
         except Exception as e:
             error = create_template_error(
@@ -79,7 +80,13 @@ class TemplateAdapter:
                     "output_path": str(output_path) if output_path else None,
                 },
             )
-            logger.error("Error rendering template %s: %s", template_path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "template_render_error",
+                template_path=str(template_path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def render_string(self, template_string: str, context: dict[str, Any]) -> str:
@@ -110,7 +117,10 @@ class TemplateAdapter:
                     "template_length": len(template_string),
                 },
             )
-            logger.error("Error rendering template string: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "template_string_render_error", error=str(e), exc_info=exc_info
+            )
             raise error from e
 
     def validate_template(self, template_path: Path) -> bool:
@@ -118,10 +128,12 @@ class TemplateAdapter:
         try:
             from jinja2 import Environment, FileSystemLoader
 
-            logger.debug("Validating template: %s", template_path)
+            logger.debug("validating_template", template_path=str(template_path))
 
             if not template_path.exists():
-                logger.warning("Template file does not exist: %s", template_path)
+                logger.warning(
+                    "template_file_not_exist", template_path=str(template_path)
+                )
                 return False
 
             # Create Jinja2 environment
@@ -134,11 +146,17 @@ class TemplateAdapter:
             # Try to parse the template
             env.get_template(template_path.name)
 
-            logger.debug("Template validation successful: %s", template_path)
+            logger.debug(
+                "template_validation_successful", template_path=str(template_path)
+            )
             return True
 
         except Exception as e:
-            logger.warning("Template validation failed for %s: %s", template_path, e)
+            logger.warning(
+                "template_validation_failed",
+                template_path=str(template_path),
+                error=str(e),
+            )
             return False
 
     def get_template_variables(self, template_input: str | Path) -> list[str]:
@@ -192,7 +210,9 @@ class TemplateAdapter:
         try:
             from jinja2 import Environment, FileSystemLoader, meta
 
-            logger.debug("Extracting variables from template file: %s", template_path)
+            logger.debug(
+                "extracting_template_variables", template_path=str(template_path)
+            )
 
             if not template_path.exists():
                 error = create_template_error(
@@ -201,7 +221,9 @@ class TemplateAdapter:
                     FileNotFoundError("Template file not found"),
                     {},
                 )
-                logger.error("Template file does not exist: %s", template_path)
+                logger.error(
+                    "template_file_does_not_exist", template_path=str(template_path)
+                )
                 raise error
 
             # Create Jinja2 environment
@@ -224,7 +246,9 @@ class TemplateAdapter:
                 variables = list(meta.find_undeclared_variables(ast))
 
             logger.debug(
-                "Found %d variables in template: %s", len(variables), variables
+                "template_variables_found",
+                variable_count=len(variables),
+                variables=variables,
             )
             return sorted(variables)
 
@@ -232,10 +256,12 @@ class TemplateAdapter:
             error = create_template_error(
                 template_path, "get_template_variables", e, {}
             )
+            exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Error extracting variables from template %s: %s",
-                template_path,
-                e,
+                "template_variable_extraction_error",
+                template_path=str(template_path),
+                error=str(e),
+                exc_info=exc_info,
             )
             raise error from e
 
@@ -256,7 +282,7 @@ class TemplateAdapter:
             TemplateError: If template rendering fails
         """
         try:
-            logger.debug("Reading template file: %s", template_path)
+            logger.debug("reading_template_file", template_path=str(template_path))
 
             with template_path.open(mode="r", encoding=encoding) as f:
                 template_content = f.read()
@@ -270,7 +296,7 @@ class TemplateAdapter:
                 e,
                 {"context_keys": list(context.keys()), "encoding": encoding},
             )
-            logger.error("Template file not found: %s", template_path)
+            logger.error("template_file_not_found", template_path=str(template_path))
             raise error from e
         except PermissionError as e:
             error = create_template_error(
@@ -279,7 +305,9 @@ class TemplateAdapter:
                 e,
                 {"context_keys": list(context.keys()), "encoding": encoding},
             )
-            logger.error("Permission denied reading template: %s", template_path)
+            logger.error(
+                "template_read_permission_denied", template_path=str(template_path)
+            )
             raise error from e
         except TemplateError:
             # Let TemplateError from render_string pass through
@@ -291,7 +319,13 @@ class TemplateAdapter:
                 e,
                 {"context_keys": list(context.keys()), "encoding": encoding},
             )
-            logger.error("Error rendering template file %s: %s", template_path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "template_file_render_error",
+                template_path=str(template_path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
     def validate_template_syntax(self, template_content: str) -> bool:
@@ -306,7 +340,7 @@ class TemplateAdapter:
         try:
             from jinja2 import Environment
 
-            logger.debug("Validating template syntax")
+            logger.debug("validating_template_syntax")
 
             # Create Jinja2 environment
             env = Environment(
@@ -317,11 +351,11 @@ class TemplateAdapter:
             # Try to parse the template
             env.from_string(template_content)
 
-            logger.debug("Template syntax validation successful")
+            logger.debug("template_syntax_validation_successful")
             return True
 
         except Exception as e:
-            logger.warning("Template syntax validation failed: %s", e)
+            logger.warning("template_syntax_validation_failed", error=str(e))
             return False
 
     def get_template_variables_from_string(self, template_content: str) -> list[str]:
@@ -339,7 +373,7 @@ class TemplateAdapter:
         try:
             from jinja2 import Environment, meta
 
-            logger.debug("Extracting variables from template string")
+            logger.debug("extracting_variables_from_template_string")
 
             # Create Jinja2 environment
             env = Environment(
@@ -352,7 +386,9 @@ class TemplateAdapter:
             variables = list(meta.find_undeclared_variables(ast))
 
             logger.debug(
-                "Found %d variables in template: %s", len(variables), variables
+                "template_variables_found",
+                variable_count=len(variables),
+                variables=variables,
             )
             return sorted(variables)
 
@@ -363,7 +399,8 @@ class TemplateAdapter:
                 e,
                 {"template_length": len(template_content)},
             )
-            logger.error("Failed to parse template string: %s", e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error("template_string_parse_error", error=str(e), exc_info=exc_info)
             raise error from e
 
     def _write_output(self, output_path: Path, content: str) -> None:
@@ -372,16 +409,24 @@ class TemplateAdapter:
             # Ensure parent directory exists
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            logger.debug("Writing rendered content to: %s", output_path)
+            logger.debug("writing_rendered_content", output_path=str(output_path))
             with output_path.open(mode="w", encoding="utf-8") as f:
                 f.write(content)
-            logger.debug("Successfully wrote rendered content to: %s", output_path)
+            logger.debug(
+                "rendered_content_written_successfully", output_path=str(output_path)
+            )
 
         except Exception as e:
             error = create_template_error(
                 output_path, "write_output", e, {"content_length": len(content)}
             )
-            logger.error("Error writing rendered content to %s: %s", output_path, e)
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "rendered_content_write_error",
+                output_path=str(output_path),
+                error=str(e),
+                exc_info=exc_info,
+            )
             raise error from e
 
 

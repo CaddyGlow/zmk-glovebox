@@ -8,6 +8,7 @@ import typer
 
 from glovebox.cli.decorators.error_handling import print_stack_trace_if_verbose
 from glovebox.core.logging import setup_logging, setup_logging_from_config
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ except ImportError:
     except Exception:
         __version__ = "unknown"
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 # Context object for sharing state
@@ -254,12 +255,12 @@ def _run_startup_checks(app_context: AppContext) -> None:
                 from glovebox.cli.helpers.theme import Icons
 
                 logger.info(
-                    "%s Running startup checks...", Icons.get_icon("FIRMWARE", "text")
+                    "running_startup_checks", icon=Icons.get_icon("FIRMWARE", "text")
                 )
                 startup_service = create_startup_service(app_context.user_config)
                 startup_service.run_startup_checks()
                 logger.info(
-                    "%s Startup checks completed", Icons.get_icon("SUCCESS", "text")
+                    "startup_checks_completed", icon=Icons.get_icon("SUCCESS", "text")
                 )
         else:
             startup_service = create_startup_service(app_context.user_config)
@@ -267,7 +268,8 @@ def _run_startup_checks(app_context: AppContext) -> None:
 
     except Exception as e:
         # Silently fail for startup checks - don't interrupt user workflow
-        logger.debug("Failed to run startup checks: %s", e)
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.debug("startup_checks_failed", error=str(e), exc_info=exc_info)
 
 
 def main() -> int:
@@ -288,7 +290,8 @@ def main() -> int:
         exit_code = e.code if isinstance(e.code, int) else 0
 
     except Exception as e:
-        logger.exception(f"Unexpected error: {e}")
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("unexpected_cli_error", error=str(e), exc_info=exc_info)
 
         # Check if we should print stack trace (verbosity level)
         print_stack_trace_if_verbose()

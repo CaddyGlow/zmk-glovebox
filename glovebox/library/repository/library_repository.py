@@ -8,10 +8,11 @@ from typing import Any
 
 import yaml
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.library.models import LibraryEntry, LibrarySource
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class LibraryRepository:
@@ -42,20 +43,18 @@ class LibraryRepository:
             Index dictionary mapping UUIDs to entry metadata
         """
         if not self.index_path.exists():
-            logger.debug("No index file found, creating new index")
+            logger.debug("no_index_file_creating_new")
             return {}
 
         try:
             with self.index_path.open("r", encoding="utf-8") as f:
                 index_data = yaml.safe_load(f) or {}
-                logger.debug("Loaded index with %d entries", len(index_data))
+                logger.debug("index_loaded", entry_count=len(index_data))
                 return index_data
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Failed to load index file, creating new index: %s",
-                e,
-                exc_info=exc_info,
+                "index_load_failed_creating_new", error=str(e), exc_info=exc_info
             )
             return {}
 
@@ -64,10 +63,10 @@ class LibraryRepository:
         try:
             with self.index_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(self._index, f, default_flow_style=False, sort_keys=True)
-            logger.debug("Saved index with %d entries", len(self._index))
+            logger.debug("index_saved", entry_count=len(self._index))
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to save index file: %s", e, exc_info=exc_info)
+            logger.error("index_save_failed", error=str(e), exc_info=exc_info)
 
     def _generate_layout_filename(self, entry: LibraryEntry) -> str:
         """Generate filename for layout file.
@@ -170,17 +169,17 @@ class LibraryRepository:
             self._save_index()
 
             logger.info(
-                "Stored layout '%s' (UUID: %s) to %s",
-                entry.title or entry.name,
-                entry.uuid,
-                layout_file_path,
+                "layout_stored",
+                title=entry.title or entry.name,
+                uuid=entry.uuid,
+                file_path=str(layout_file_path),
             )
             return updated_entry
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Failed to store layout %s: %s", entry.uuid, e, exc_info=exc_info
+                "layout_store_failed", uuid=entry.uuid, error=str(e), exc_info=exc_info
             )
             raise
 
@@ -202,7 +201,10 @@ class LibraryRepository:
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Failed to reconstruct entry for %s: %s", uuid, e, exc_info=exc_info
+                "entry_reconstruction_failed",
+                uuid=uuid,
+                error=str(e),
+                exc_info=exc_info,
             )
             return None
 
@@ -222,9 +224,9 @@ class LibraryRepository:
                 except Exception as e:
                     exc_info = logger.isEnabledFor(logging.DEBUG)
                     logger.error(
-                        "Failed to reconstruct entry for name %s: %s",
-                        name,
-                        e,
+                        "entry_reconstruction_by_name_failed",
+                        name=name,
+                        error=str(e),
                         exc_info=exc_info,
                     )
                     continue
@@ -267,7 +269,9 @@ class LibraryRepository:
 
             except Exception as e:
                 exc_info = logger.isEnabledFor(logging.DEBUG)
-                logger.error("Failed to reconstruct entry: %s", e, exc_info=exc_info)
+                logger.error(
+                    "list_entry_reconstruction_failed", error=str(e), exc_info=exc_info
+                )
                 continue
 
         # Sort by downloaded date (newest first)
@@ -285,7 +289,7 @@ class LibraryRepository:
         """
         index_data = self._index.get(uuid)
         if index_data is None:
-            logger.warning("Entry not found for removal: %s", uuid)
+            logger.warning("removal_entry_not_found", uuid=uuid)
             return False
 
         try:
@@ -293,18 +297,20 @@ class LibraryRepository:
             file_path = Path(index_data["file_path"])
             if file_path.exists():
                 file_path.unlink()
-                logger.debug("Removed layout file: %s", file_path)
+                logger.debug("layout_file_removed", file_path=str(file_path))
 
             # Remove from index
             del self._index[uuid]
             self._save_index()
 
-            logger.info("Removed library entry: %s", uuid)
+            logger.info("library_entry_removed", uuid=uuid)
             return True
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to remove entry %s: %s", uuid, e, exc_info=exc_info)
+            logger.error(
+                "entry_removal_failed", uuid=uuid, error=str(e), exc_info=exc_info
+            )
             return False
 
     def get_layout_content(self, uuid: str) -> dict[str, Any] | None:
@@ -322,7 +328,7 @@ class LibraryRepository:
 
         try:
             if not entry.file_path.exists():
-                logger.error("Layout file not found: %s", entry.file_path)
+                logger.error("layout_file_not_found", file_path=str(entry.file_path))
                 return None
 
             content = entry.file_path.read_text(encoding="utf-8")
@@ -331,7 +337,7 @@ class LibraryRepository:
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Failed to read layout content for %s: %s", uuid, e, exc_info=exc_info
+                "layout_content_read_failed", uuid=uuid, error=str(e), exc_info=exc_info
             )
             return None
 

@@ -13,9 +13,10 @@ import typer
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.cli.helpers.parameters import complete_json_files
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # Create a typer app for cloud commands
 cloud_app = typer.Typer(
@@ -169,7 +170,12 @@ class DownloadLayoutCommand(IOCommand):
     def handle_service_error(self, error: Exception, operation: str) -> None:
         """Handle service layer errors with consistent messaging."""
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
+        logger.error(
+            "cloud_operation_failed",
+            operation=operation,
+            error=str(error),
+            exc_info=exc_info,
+        )
         self.console.print_error(f"Failed to {operation}: {error}")
         raise typer.Exit(1) from error
 
@@ -241,7 +247,12 @@ class ListLayoutsCommand(IOCommand):
     def handle_service_error(self, error: Exception, operation: str) -> None:
         """Handle service layer errors with consistent messaging."""
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
+        logger.error(
+            "cloud_operation_failed",
+            operation=operation,
+            error=str(error),
+            exc_info=exc_info,
+        )
         self.console.print_error(f"Failed to {operation}: {error}")
         raise typer.Exit(1) from error
 
@@ -265,7 +276,12 @@ class BrowseLayoutsCommand(IOCommand):
     def handle_service_error(self, error: Exception, operation: str) -> None:
         """Handle service layer errors with consistent messaging."""
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
+        logger.error(
+            "cloud_operation_failed",
+            operation=operation,
+            error=str(error),
+            exc_info=exc_info,
+        )
         self.console.print_error(f"Failed to {operation}: {error}")
         raise typer.Exit(1) from error
 
@@ -309,7 +325,12 @@ class DeleteLayoutCommand(IOCommand):
     def handle_service_error(self, error: Exception, operation: str) -> None:
         """Handle service layer errors with consistent messaging."""
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
+        logger.error(
+            "cloud_operation_failed",
+            operation=operation,
+            error=str(error),
+            exc_info=exc_info,
+        )
         self.console.print_error(f"Failed to {operation}: {error}")
         raise typer.Exit(1) from error
 

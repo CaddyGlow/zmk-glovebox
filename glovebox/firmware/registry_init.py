@@ -1,15 +1,15 @@
 """Initialize method registries with implementations."""
 
-import logging
 from typing import cast
 
 from glovebox.config.flash_methods import USBFlashConfig
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.flasher_methods import USBFlasher
 from glovebox.firmware.method_registry import flasher_registry
 from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def register_flash_methods() -> None:

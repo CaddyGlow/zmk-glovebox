@@ -7,6 +7,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Protocol
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.models import LayoutBinding, LayoutData
 from glovebox.models.base import GloveboxBaseModel
 
@@ -55,7 +56,7 @@ class KeymapParseResult(GloveboxBaseModel):
     extracted_sections: dict[str, object] = {}
 
 
-class ZmkKeymapParser:
+class ZmkKeymapParser(StructlogMixin):
     """Parser for converting ZMK keymap files back to glovebox JSON layouts.
 
     Supports two parsing modes:
@@ -73,7 +74,7 @@ class ZmkKeymapParser:
             template_adapter: Template adapter for processing template files
             processors: Dictionary of parsing mode to processor instances
         """
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
         self.model_factory = ModelFactory()
         self.defines: dict[str, str] = {}
 

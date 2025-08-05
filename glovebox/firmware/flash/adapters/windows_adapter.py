@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 
 try:
     import wmi  # type: ignore[import-not-found]
@@ -21,7 +23,7 @@ if TYPE_CHECKING:
 from glovebox.firmware.flash.models import BlockDevice
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class WindowsFlashOS:
@@ -86,9 +88,13 @@ class WindowsFlashOS:
                     # Verify the drive is accessible
                     if self._is_drive_accessible(drive_letter):
                         mount_points.append(drive_letter + "\\")
-                        logger.debug("Found accessible drive: %s", drive_letter)
+                        logger.debug(
+                            "found_accessible_drive", drive_letter=drive_letter
+                        )
                     else:
-                        logger.warning("Drive %s is not accessible", drive_letter)
+                        logger.warning(
+                            "drive_not_accessible", drive_letter=drive_letter
+                        )
 
             if not mount_points:
                 # Try to wait a moment for Windows to mount the device
@@ -164,7 +170,9 @@ class WindowsFlashOS:
                                 )
                                 success = False
                             else:
-                                logger.debug("Successfully dismounted %s", drive_letter)
+                                logger.debug(
+                                    "successfully_dismounted", drive_letter=drive_letter
+                                )
                             break
                 except Exception as e:
                     exc_info = logger.isEnabledFor(logging.DEBUG)
@@ -177,7 +185,7 @@ class WindowsFlashOS:
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.warning("Error during unmount: %s", e, exc_info=exc_info)
+            logger.warning("error_during_unmount", error=str(e), exc_info=exc_info)
             return False
 
     def copy_firmware_file(self, firmware_file: Path, mount_point: str) -> bool:
@@ -188,7 +196,11 @@ class WindowsFlashOS:
                 mount_point += "\\"
 
             dest_path = Path(mount_point) / firmware_file.name
-            logger.info("Copying %s to %s", firmware_file, dest_path)
+            logger.info(
+                "copying_firmware_file",
+                firmware_file=str(firmware_file),
+                dest_path=str(dest_path),
+            )
 
             # Use shutil.copy2 to preserve metadata
             shutil.copy2(firmware_file, mount_point)
@@ -198,15 +210,17 @@ class WindowsFlashOS:
                 dest_path.exists()
                 and dest_path.stat().st_size == firmware_file.stat().st_size
             ):
-                logger.debug("File copied successfully to %s", dest_path)
+                logger.debug("file_copied_successfully", dest_path=str(dest_path))
                 return True
             else:
-                logger.error("File copy verification failed for %s", dest_path)
+                logger.error("file_copy_verification_failed", dest_path=str(dest_path))
                 return False
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to copy firmware file: %s", e, exc_info=exc_info)
+            logger.error(
+                "failed_to_copy_firmware_file", error=str(e), exc_info=exc_info
+            )
             return False
 
     def sync_filesystem(self, mount_point: str) -> bool:
@@ -229,24 +243,30 @@ class WindowsFlashOS:
             )
 
             if handle == -1:
-                logger.warning("Could not get handle for %s", drive_letter)
+                logger.warning("could_not_get_handle", drive_letter=drive_letter)
                 return False
 
             try:
                 # Flush file buffers
                 result = ctypes.windll.kernel32.FlushFileBuffers(handle)  # type: ignore[attr-defined]
                 if result:
-                    logger.debug("Successfully flushed buffers for %s", drive_letter)
+                    logger.debug(
+                        "successfully_flushed_buffers", drive_letter=drive_letter
+                    )
                     return True
                 else:
-                    logger.warning("FlushFileBuffers failed for %s", drive_letter)
+                    logger.warning(
+                        "flush_file_buffers_failed", drive_letter=drive_letter
+                    )
                     return False
             finally:
                 ctypes.windll.kernel32.CloseHandle(handle)  # type: ignore[attr-defined]
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.warning("Error during filesystem sync: %s", e, exc_info=exc_info)
+            logger.warning(
+                "error_during_filesystem_sync", error=str(e), exc_info=exc_info
+            )
             # Try alternative approach using sync command if available
             try:
                 subprocess.run(["sync"], check=True, timeout=5)

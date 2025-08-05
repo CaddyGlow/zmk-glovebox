@@ -3,13 +3,15 @@
 import logging
 from typing import Any
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 from .base import BaseFetcher
 from .file_fetcher import FileFetcher
 from .http_fetcher import HTTPFetcher
 from .moergo_fetcher import MoErgoFetcher
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FetcherRegistry:
@@ -26,7 +28,7 @@ class FetcherRegistry:
             fetcher: Fetcher to register
         """
         self._fetchers.append(fetcher)
-        logger.debug("Registered fetcher: %s", type(fetcher).__name__)
+        logger.debug("registered_fetcher", fetcher_type=type(fetcher).__name__)
 
     def get_fetcher(self, source: str) -> BaseFetcher | None:
         """Get appropriate fetcher for source.
@@ -40,11 +42,13 @@ class FetcherRegistry:
         for fetcher in self._fetchers:
             if fetcher.can_fetch(source):
                 logger.debug(
-                    "Selected fetcher %s for source: %s", type(fetcher).__name__, source
+                    "selected_fetcher",
+                    fetcher_type=type(fetcher).__name__,
+                    source=source,
                 )
                 return fetcher
 
-        logger.warning("No fetcher found for source: %s", source)
+        logger.warning("no_fetcher_found", source=source)
         return None
 
     def get_metadata(self, source: str) -> dict[str, Any] | None:

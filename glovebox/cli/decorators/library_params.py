@@ -12,9 +12,10 @@ from glovebox.cli.helpers.library_resolver import (
     is_library_reference,
     resolve_library_reference,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -61,14 +62,16 @@ def with_library_resolution(*param_names: str) -> Callable[[F], F]:
                             resolved_path = resolve_library_reference(value)
                             kwargs[param_name] = str(resolved_path)
                             logger.debug(
-                                "Resolved library reference %s to %s",
-                                value,
-                                resolved_path,
+                                "resolved_library_reference",
+                                original=value,
+                                resolved=str(resolved_path),
                             )
                         except Exception as e:
                             # Let the error propagate with clear message
                             logger.error(
-                                "Failed to resolve library reference %s: %s", value, e
+                                "library_reference_resolution_failed",
+                                reference=value,
+                                error=str(e),
                             )
                             raise typer.BadParameter(
                                 f"Cannot resolve library reference '{value}': {e}"
@@ -111,12 +114,16 @@ def resolve_library_params(ctx: typer.Context, param_mapping: dict[str, str]) ->
                     resolved_path = resolve_library_reference(value)
                     ctx.params[param_key] = str(resolved_path)
                     logger.debug(
-                        "Resolved library reference %s to %s in context",
-                        value,
-                        resolved_path,
+                        "resolved_library_reference_in_context",
+                        original=value,
+                        resolved=str(resolved_path),
                     )
                 except Exception as e:
-                    logger.error("Failed to resolve library reference %s: %s", value, e)
+                    logger.error(
+                        "library_reference_resolution_failed_in_context",
+                        reference=value,
+                        error=str(e),
+                    )
                     raise typer.BadParameter(
                         f"Cannot resolve library reference '{value}': {e}"
                     ) from e

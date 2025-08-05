@@ -1,6 +1,5 @@
 """Cache show CLI command."""
 
-import logging
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -12,6 +11,7 @@ from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.cli.helpers.theme import Colors, Icons, get_themed_console
 from glovebox.config.user_config import create_user_config
+from glovebox.core.structlog_logger import get_struct_logger
 
 from .utils import (
     format_size_display,
@@ -21,7 +21,7 @@ from .utils import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 themed_console = get_themed_console("text")
 console = themed_console.console
 

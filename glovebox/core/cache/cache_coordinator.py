@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from glovebox.core.logging import get_logger
+from glovebox.core.structlog_logger import get_struct_logger
 
 from .cache_manager import CacheManager
 from .disabled_cache import DisabledCache
@@ -16,7 +16,7 @@ from .diskcache_manager import DiskCacheManager
 from .models import DiskCacheConfig
 
 
-logger = get_logger(__name__)
+logger = get_struct_logger(__name__)
 
 # Shared cache instances registry
 _shared_cache_instances: dict[str, CacheManager] = {}
@@ -67,7 +67,7 @@ def get_shared_cache_instance(
             config, tag=tag, session_metrics=session_metrics
         )
     else:
-        logger.debug("Reusing existing shared cache instance: %s", cache_key)
+        logger.debug("cache_instance_reused", cache_key=cache_key)
 
     return _shared_cache_instances[cache_key]
 
@@ -86,7 +86,7 @@ def reset_shared_cache_instances(user_config: Any = None) -> None:
 
     global _shared_cache_instances
 
-    logger.debug("Resetting %d shared cache instances", len(_shared_cache_instances))
+    logger.debug("cache_instances_resetting", count=len(_shared_cache_instances))
 
     # Close all existing cache instances
     for cache_key, cache_instance in _shared_cache_instances.items():
@@ -96,7 +96,10 @@ def reset_shared_cache_instances(user_config: Any = None) -> None:
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.warning(
-                "Error closing cache instance %s: %s", cache_key, e, exc_info=exc_info
+                "cache_instance_close_failed",
+                cache_key=cache_key,
+                error=str(e),
+                exc_info=exc_info,
             )
 
     # Clear the registry
@@ -119,10 +122,12 @@ def reset_shared_cache_instances(user_config: Any = None) -> None:
 
         if cache_root.exists():
             shutil.rmtree(cache_root, ignore_errors=True)
-            logger.debug("Cleaned up cache directory: %s", cache_root)
+            logger.debug("cache_directory_cleaned", cache_root=str(cache_root))
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.warning("Error cleaning cache directory: %s", e, exc_info=exc_info)
+        logger.warning(
+            "cache_directory_cleanup_failed", error=str(e), exc_info=exc_info
+        )
 
 
 def get_cache_instance_count() -> int:
@@ -157,16 +162,16 @@ def cleanup_shared_cache_instances() -> dict[str, int]:
                 cleanup_count = cache_instance.cleanup()
                 cleanup_results[cache_key] = cleanup_count
                 logger.debug(
-                    "Cleaned up %d entries from cache instance: %s",
-                    cleanup_count,
-                    cache_key,
+                    "cache_entries_cleaned",
+                    cleanup_count=cleanup_count,
+                    cache_key=cache_key,
                 )
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.warning(
-                "Error cleaning up cache instance %s: %s",
-                cache_key,
-                e,
+                "cache_cleanup_failed",
+                cache_key=cache_key,
+                error=str(e),
                 exc_info=exc_info,
             )
             cleanup_results[cache_key] = 0
@@ -217,9 +222,9 @@ def get_aggregated_cache_stats() -> dict[str, Any]:
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.warning(
-                "Error getting stats from cache instance %s: %s",
-                cache_key,
-                e,
+                "cache_stats_failed",
+                cache_key=cache_key,
+                error=str(e),
                 exc_info=exc_info,
             )
 

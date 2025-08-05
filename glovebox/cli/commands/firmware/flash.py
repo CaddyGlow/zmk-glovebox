@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
@@ -22,7 +24,7 @@ from glovebox.firmware.flash import create_flash_service
 from glovebox.firmware.flash.models import FlashResult
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FlashFirmwareCommand(FirmwareFileCommand):

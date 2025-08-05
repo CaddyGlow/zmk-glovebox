@@ -16,6 +16,7 @@ from glovebox.config.keyboard_profile import (
 )
 from glovebox.config.profile import KeyboardProfile
 from glovebox.config.user_config import UserConfig
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -47,7 +48,7 @@ def _get_icon_mode_safe(user_config: UserConfig | None = None) -> "IconMode":
         return IconMode.EMOJI
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # Default fallback profile (aligned with user config default)
 DEFAULT_PROFILE = "glove80/v25.05"

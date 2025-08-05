@@ -1,7 +1,6 @@
 """Platform-specific USB device monitoring implementations."""
 
 import abc
-import logging
 import platform
 import subprocess
 import threading
@@ -10,6 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.models import (
     BlockDevice,
     BlockDeviceDict,
@@ -21,7 +21,7 @@ from glovebox.firmware.flash.models import (
 from glovebox.protocols.mount_cache_protocol import MountCacheProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # Union type for USB devices to support both storage and non-storage devices
 USBDeviceType = BlockDevice | USBDevice

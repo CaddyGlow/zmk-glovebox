@@ -1,6 +1,5 @@
 """Workspace cache management CLI commands."""
 
-import logging
 import time
 from pathlib import Path
 from typing import Annotated, Any
@@ -19,6 +18,7 @@ from glovebox.cli.workspace_display_utils import (
     filter_workspaces,
     format_workspace_entry,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 
 from .utils import (
     format_icon_with_message,
@@ -33,7 +33,7 @@ from .workspace_processing import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 console = Console()
 
 workspace_app = typer.Typer(help="Workspace cache management")

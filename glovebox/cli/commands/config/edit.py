@@ -1,7 +1,6 @@
 """Unified configuration editing commands."""
 
 import json
-import logging
 import os
 import subprocess
 from pathlib import Path
@@ -27,12 +26,13 @@ from glovebox.config.models.firmware import (
     FirmwareFlashConfig,
 )
 from glovebox.config.models.user import UserConfigData
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class ConfigEditor:

@@ -9,6 +9,7 @@ from glovebox.compilation.models import (
     MoergoCompilationConfig,
     ZmkCompilationConfig,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout.behavior.models import SystemBehavior
 from glovebox.models.base import GloveboxBaseModel
 
@@ -19,7 +20,7 @@ from .firmware import FirmwareConfig, KConfigOption
 from .zmk import ZmkConfig
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 # Formatting configuration

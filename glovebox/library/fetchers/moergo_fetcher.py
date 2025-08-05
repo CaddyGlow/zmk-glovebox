@@ -7,12 +7,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.library.models import FetchResult, LibraryEntry, LibrarySource
 from glovebox.moergo.client import MoErgoClient
 from glovebox.moergo.client.models import AuthenticationError, NetworkError
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class MoErgoFetcher:
@@ -115,7 +116,7 @@ class MoErgoFetcher:
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             logger.error(
-                "Failed to get metadata for %s: %s", source, e, exc_info=exc_info
+                "metadata_fetch_failed", source=source, error=str(e), exc_info=exc_info
             )
             return None
 
@@ -144,7 +145,7 @@ class MoErgoFetcher:
                 return FetchResult(success=False, errors=errors)
 
             # Download layout
-            logger.info("Downloading layout %s from MoErgo", uuid)
+            logger.info("downloading_moergo_layout", uuid=uuid)
             layout = self.client.get_layout(uuid)
 
             # Prepare layout data for saving
@@ -189,9 +190,9 @@ class MoErgoFetcher:
             )
 
             logger.info(
-                "Successfully downloaded layout '%s' to %s",
-                entry.title or entry.name,
-                target_path,
+                "moergo_layout_download_successful",
+                title=entry.title or entry.name,
+                target_path=str(target_path),
             )
             return FetchResult(
                 success=True, entry=entry, file_path=target_path, warnings=warnings
@@ -200,20 +201,20 @@ class MoErgoFetcher:
         except AuthenticationError as e:
             error_msg = f"MoErgo authentication error: {e}"
             errors.append(error_msg)
-            logger.error(error_msg)
+            logger.error("moergo_authentication_error", error=str(e))
             return FetchResult(success=False, errors=errors)
 
         except NetworkError as e:
             error_msg = f"Network error accessing MoErgo: {e}"
             errors.append(error_msg)
-            logger.error(error_msg)
+            logger.error("moergo_network_error", error=str(e))
             return FetchResult(success=False, errors=errors)
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
             error_msg = f"Failed to fetch layout from MoErgo: {e}"
             errors.append(error_msg)
-            logger.error(error_msg, exc_info=exc_info)
+            logger.error("moergo_fetch_failed", error=str(e), exc_info=exc_info)
             return FetchResult(success=False, errors=errors)
 
 

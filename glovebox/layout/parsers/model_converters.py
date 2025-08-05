@@ -1,8 +1,8 @@
 """Converters from AST nodes to glovebox behavior models."""
 
-import logging
 from typing import Any
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.behavior.models import ParamValue
 from glovebox.layout.models import (
     CapsWordBehavior,
@@ -18,15 +18,15 @@ from glovebox.layout.models import (
 from glovebox.layout.parsers.ast_nodes import DTNode, DTValue, DTValueType
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
-class ModelConverter:
+class ModelConverter(StructlogMixin):
     """Base class for converting AST nodes to glovebox models."""
 
     def __init__(self) -> None:
         """Initialize converter."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
     def _get_property_value(
         self, node: DTNode, prop_name: str, default: Any = None
@@ -1396,7 +1396,7 @@ class ModMorphConverter(ModelConverter):
         return self._parse_enhanced_binding(binding_str)
 
 
-class UniversalModelConverter:
+class UniversalModelConverter(StructlogMixin):
     """Universal converter that handles all behavior types."""
 
     def __init__(self) -> None:
@@ -1408,7 +1408,7 @@ class UniversalModelConverter:
         self.sticky_key_converter = StickyKeyConverter()
         self.caps_word_converter = CapsWordConverter()
         self.mod_morph_converter = ModMorphConverter()
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
     def convert_behaviors(
         self, behaviors_dict: dict[str, list[DTNode]]

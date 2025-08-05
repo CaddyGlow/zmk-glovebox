@@ -13,11 +13,11 @@ from glovebox.config.models import (
     KeyboardConfig,
 )
 from glovebox.core.errors import ConfigError
-from glovebox.core.logging import get_logger
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout.models import SystemBehavior
 
 
-logger = get_logger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class KeyboardProfile:

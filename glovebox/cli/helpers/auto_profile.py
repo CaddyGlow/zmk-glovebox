@@ -11,8 +11,10 @@ import os
 from pathlib import Path
 from typing import Any
 
+from glovebox.core.structlog_logger import get_struct_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_struct_logger(__name__)
 
 
 def extract_keyboard_from_json(json_file: Path) -> str | None:
@@ -34,16 +36,14 @@ def extract_keyboard_from_json(json_file: Path) -> str | None:
             if keyboard_stripped:
                 return keyboard_stripped
             else:
-                logger.debug(
-                    "Keyboard field found but empty after stripping whitespace"
-                )
+                logger.debug("keyboard_field_empty_after_stripping")
                 return None
         else:
-            logger.debug("No keyboard field found in JSON or invalid type")
+            logger.debug("no_keyboard_field_in_json")
             return None
 
     except Exception as e:
-        logger.warning("Failed to extract keyboard from JSON: %s", e)
+        logger.warning("failed_to_extract_keyboard_from_json", error=str(e))
         return None
 
 
@@ -78,22 +78,22 @@ def get_auto_profile_from_json(json_file: Path, user_config: Any = None) -> str 
                     if user_keyboard == keyboard:
                         # User has matching keyboard with firmware, use full profile
                         logger.debug(
-                            "User config has matching keyboard profile: %s",
-                            user_profile,
+                            "user_config_matching_keyboard_profile",
+                            profile=user_profile,
                         )
                         return user_profile  # type: ignore[no-any-return]
             except AttributeError:
                 # user_config doesn't have profile attribute, fall back to keyboard-only
-                logger.debug(
-                    "User config has no profile attribute, using keyboard-only"
-                )
+                logger.debug("user_config_no_profile_attribute_using_keyboard_only")
 
         # Fall back to keyboard-only profile
-        logger.debug("Using keyboard-only profile: %s", keyboard)
+        logger.debug("using_keyboard_only_profile", keyboard=keyboard)
         return keyboard
 
     except Exception as e:
-        logger.warning("Failed to create keyboard profile for '%s': %s", keyboard, e)
+        logger.warning(
+            "failed_to_create_keyboard_profile", keyboard=keyboard, error=str(e)
+        )
         return None
 
 
@@ -122,7 +122,9 @@ def resolve_json_file_path(
             try:
                 resolved_path = resolve_library_reference(json_file_arg)
                 logger.debug(
-                    "Resolved library reference %s to %s", json_file_arg, resolved_path
+                    "resolved_library_reference",
+                    original=json_file_arg,
+                    resolved=str(resolved_path),
                 )
                 return resolved_path
             except Exception as e:
@@ -145,9 +147,9 @@ def resolve_json_file_path(
                 try:
                     resolved_path = resolve_library_reference(env_value)
                     logger.debug(
-                        "Resolved library reference %s from env to %s",
-                        env_value,
-                        resolved_path,
+                        "resolved_library_reference_from_env",
+                        original=env_value,
+                        resolved=str(resolved_path),
                     )
                     return resolved_path
                 except Exception as e:
@@ -175,7 +177,10 @@ def resolve_json_file_path(
         return resolved_path
 
     except Exception as e:
-        logger.error("Invalid JSON file path from %s: %s", source, e)
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error(
+            "invalid_json_file_path", source=source, error=str(e), exc_info=exc_info
+        )
         raise
 
 
@@ -205,18 +210,18 @@ def resolve_profile_with_auto_detection(
     """
     # 1. CLI profile takes highest precedence
     if profile:
-        logger.debug("Using explicit CLI profile: %s", profile)
+        logger.debug("using_explicit_cli_profile", profile=profile)
         return profile
 
     # 2. Auto-detection from JSON (unless disabled)
     if not no_auto and json_file and json_file.suffix.lower() == ".json":
         auto_profile = get_auto_profile_from_json(json_file, user_config)
         if auto_profile:
-            logger.info("Auto-detected profile from JSON: %s", auto_profile)
+            logger.info("auto_detected_profile_from_json", profile=auto_profile)
             return auto_profile
         else:
-            logger.debug("Auto-profile detection failed, falling back to defaults")
+            logger.debug("auto_profile_detection_failed_fallback_to_defaults")
 
     # 3-5. Let UserConfig handle environment variable, config file, and defaults
-    logger.debug("No explicit profile or auto-detection, using UserConfig defaults")
+    logger.debug("using_user_config_defaults")
     return None

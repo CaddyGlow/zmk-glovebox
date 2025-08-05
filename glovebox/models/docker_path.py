@@ -6,10 +6,11 @@ from typing import Self
 
 from pydantic import field_validator
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.models.base import GloveboxBaseModel
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class DockerPath(GloveboxBaseModel):

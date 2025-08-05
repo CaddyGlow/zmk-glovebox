@@ -1,16 +1,16 @@
 """AST walker infrastructure for device tree traversal."""
 
-import logging
 from collections.abc import Callable
 from typing import Any
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.parsers.ast_nodes import DTNode, DTProperty, DTVisitor
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
-class DTWalker:
+class DTWalker(StructlogMixin):
     """Walker for traversing device tree AST with filtering capabilities."""
 
     def __init__(self, root: DTNode) -> None:
@@ -225,7 +225,7 @@ class BehaviorExtractor(DTVisitor):
         self.combos: list[DTNode] = []
         self.tap_dances: list[DTNode] = []
         self.hold_taps: list[DTNode] = []
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
     def visit_node(self, node: DTNode) -> Any:
         """Visit a device tree node and extract behaviors.
@@ -294,12 +294,12 @@ class BehaviorExtractor(DTVisitor):
         return combos
 
 
-class MacroExtractor:
+class MacroExtractor(StructlogMixin):
     """Extract macro definitions from device tree AST."""
 
     def __init__(self) -> None:
         """Initialize extractor."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
     def extract_macros(self, root: DTNode) -> list[DTNode]:
         """Extract macro definitions from macros sections.
@@ -332,12 +332,12 @@ class MacroExtractor:
         return macros
 
 
-class HoldTapExtractor:
+class HoldTapExtractor(StructlogMixin):
     """Extract hold-tap behavior definitions from device tree AST."""
 
     def __init__(self) -> None:
         """Initialize extractor."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
     def extract_hold_taps(self, root: DTNode) -> list[DTNode]:
         """Extract hold-tap definitions from behaviors sections.
@@ -369,12 +369,12 @@ class HoldTapExtractor:
         return hold_taps
 
 
-class ComboExtractor:
+class ComboExtractor(StructlogMixin):
     """Extract combo definitions from device tree AST."""
 
     def __init__(self) -> None:
         """Initialize extractor."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
     def extract_combos(self, root: DTNode) -> list[DTNode]:
         """Extract combo definitions from combos sections.
@@ -409,12 +409,12 @@ class ComboExtractor:
         return combos
 
 
-class UniversalBehaviorExtractor:
+class UniversalBehaviorExtractor(StructlogMixin):
     """Universal behavior extractor that finds all behavior types and metadata."""
 
     def __init__(self) -> None:
         """Initialize extractor."""
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
 
         # Enhanced behavior patterns for better detection
         self.behavior_patterns = {

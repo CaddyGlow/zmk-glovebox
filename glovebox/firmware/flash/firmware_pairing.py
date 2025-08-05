@@ -1,8 +1,8 @@
 """Firmware pairing service for split keyboard management."""
 
-import logging
 from pathlib import Path
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.models import (
     FirmwarePair,
     FirmwareSide,
@@ -10,7 +10,7 @@ from glovebox.firmware.flash.models import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FirmwarePairingService:
@@ -65,25 +65,25 @@ class FirmwarePairingService:
                 )
                 pairs.append(pair)
                 self.logger.info(
-                    "Detected firmware pair for '%s': %s (left), %s (right)",
-                    base_name,
-                    pair.left.name,
-                    pair.right.name,
+                    "detected_firmware_pair",
+                    base_name=base_name,
+                    left_firmware=pair.left.name,
+                    right_firmware=pair.right.name,
                 )
             elif FirmwareSide.UNIFIED in sides:
                 # Single unified firmware, not a pair
                 self.logger.debug(
-                    "Unified firmware detected for '%s': %s",
-                    base_name,
-                    sides[FirmwareSide.UNIFIED].name,
+                    "unified_firmware_detected",
+                    base_name=base_name,
+                    firmware_name=sides[FirmwareSide.UNIFIED].name,
                 )
             else:
                 # Incomplete pair
                 available = list(sides.keys())
                 self.logger.warning(
-                    "Incomplete firmware pair for '%s': only %s side(s) found",
-                    base_name,
-                    available,
+                    "incomplete_firmware_pair",
+                    base_name=base_name,
+                    available_sides=available,
                 )
 
         return pairs
@@ -164,7 +164,7 @@ class FirmwarePairingService:
         """
         # If we can't detect device side, allow flashing (user responsibility)
         if device_side is None:
-            self.logger.debug("Cannot detect device side, allowing flash")
+            self.logger.debug("cannot_detect_device_side_allowing_flash")
             return True
 
         # If firmware is unified, it can go to any device
@@ -174,14 +174,15 @@ class FirmwarePairingService:
         # Check if sides match
         if firmware_side == device_side:
             self.logger.debug(
-                "Firmware side (%s) matches device side", firmware_side.value
+                "firmware_side_matches_device_side",
+                firmware_side=firmware_side.value,
             )
             return True
 
         self.logger.warning(
-            "Firmware side (%s) does not match device side (%s)",
-            firmware_side.value,
-            device_side.value,
+            "firmware_side_mismatch",
+            firmware_side=firmware_side.value,
+            device_side=device_side.value,
         )
         return False
 

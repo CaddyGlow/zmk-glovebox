@@ -15,9 +15,10 @@ from glovebox.cli.helpers.parameters import OutputFormatOption
 from glovebox.cli.helpers.theme import Colors, get_themed_console
 from glovebox.core.cache import create_default_cache
 from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 console = get_themed_console()
 
 metrics_app = typer.Typer(help="Metrics management commands")
@@ -445,7 +446,7 @@ class ShowSessionCommand(BaseCommand):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to show session: %s", e, exc_info=exc_info)
+            self.logger.error("failed_to_show_session", error=str(e), exc_info=exc_info)
             self.console.print_error(f"Failed to show session: {e}")
             raise typer.Exit(1) from e
 
@@ -520,7 +521,7 @@ class DumpSessionCommand(IOCommand):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to dump session: %s", e, exc_info=exc_info)
+            self.logger.error("failed_to_dump_session", error=str(e), exc_info=exc_info)
             self.console.print_error(f"Failed to dump session: {e}")
             raise typer.Exit(1) from e
 
@@ -644,7 +645,9 @@ class CleanSessionsCommand(BaseCommand):
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to clean sessions: %s", e, exc_info=exc_info)
+            self.logger.error(
+                "failed_to_clean_sessions", error=str(e), exc_info=exc_info
+            )
             self.console.print_error(f"Failed to clean sessions: {e}")
             raise typer.Exit(1) from e
 

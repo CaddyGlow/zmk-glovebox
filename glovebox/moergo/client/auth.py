@@ -14,7 +14,9 @@ class CognitoAuth(BaseService):
 
     def __init__(self, cognito_config: MoErgoCognitoConfig | None = None):
         super().__init__("CognitoAuth", "1.0.0")
-        self.logger = logging.getLogger(__name__)
+        from glovebox.core.structlog_logger import get_struct_logger
+
+        self.logger = get_struct_logger(__name__)
         self.config = cognito_config or MoErgoCognitoConfig()
 
     def _get_headers(self, target: str) -> dict[str, str]:
@@ -62,7 +64,7 @@ class CognitoAuth(BaseService):
         except (requests.exceptions.RequestException, ValueError) as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.warning(
-                "Cognito authentication failed: %s", e, exc_info=exc_info
+                "cognito_authentication_failed", error=str(e), exc_info=exc_info
             )
             return None
 
@@ -92,7 +94,7 @@ class CognitoAuth(BaseService):
         except (requests.exceptions.RequestException, ValueError) as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.warning(
-                "Cognito token refresh failed: %s", e, exc_info=exc_info
+                "cognito_token_refresh_failed", error=str(e), exc_info=exc_info
             )
             return None
 
@@ -122,7 +124,7 @@ class CognitoAuth(BaseService):
         except (requests.exceptions.RequestException, ValueError) as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.warning(
-                "Cognito SRP initiation failed: %s", e, exc_info=exc_info
+                "cognito_srp_initiation_failed", error=str(e), exc_info=exc_info
             )
             return None
 

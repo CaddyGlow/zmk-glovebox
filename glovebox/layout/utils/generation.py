@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.behavior.analysis import (
     get_required_includes_for_layout,
 )
@@ -20,7 +21,7 @@ from glovebox.layout.models import LayoutData, LayoutResult
 from glovebox.protocols import FileAdapterProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def generate_config_file(

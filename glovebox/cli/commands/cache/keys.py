@@ -1,9 +1,10 @@
 """Cache keys CLI command."""
 
-import logging
 import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any
+
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ from glovebox.config.user_config import create_user_config
 from .utils import format_size_display
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 console = Console()
 
 

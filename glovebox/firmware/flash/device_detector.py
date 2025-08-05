@@ -1,12 +1,13 @@
 """Device detection service implementation."""
 
-import logging
 import re
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ from glovebox.firmware.flash.usb_monitor import USBDeviceMonitorBase
 from glovebox.protocols.device_detector_protocol import DeviceDetectorProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class MountPointCache:
@@ -54,7 +55,7 @@ class MountPointCache:
             self._mountpoints = mountpoints
             self._last_updated = time.time()
         except OSError as e:
-            logger.warning("Failed to read mount points: %s", e)
+            logger.warning("failed_to_read_mount_points", error=str(e))
 
 
 class DeviceDetector(DeviceDetectorProtocol):

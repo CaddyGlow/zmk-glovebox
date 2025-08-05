@@ -1,12 +1,12 @@
 """Utilities for tracking and updating layer references in keyboard bindings."""
 
-import logging
 from collections.abc import Mapping
 
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.models import LayoutBinding, LayoutData
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # ZMK behaviors that reference layer indices
 LAYER_REFERENCING_BEHAVIORS = frozenset(["&lt", "&mo", "&to", "&tog"])

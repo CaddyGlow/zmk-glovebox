@@ -1,8 +1,9 @@
 """Device waiting service with USB monitoring for flash operations."""
 
-import logging
 import time
 from typing import TYPE_CHECKING
+
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ from glovebox.firmware.flash.wait_state import DeviceWaitState
 from glovebox.protocols.usb_adapter_protocol import USBAdapterProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class DeviceWaitService:
@@ -65,10 +66,10 @@ class DeviceWaitService:
             List of found USB devices (may be fewer than target if timeout)
         """
         logger.info(
-            "Starting device wait: target=%d, timeout=%.1fs, query='%s'",
-            target_count,
-            timeout,
-            query,
+            "starting_device_wait",
+            target_count=target_count,
+            timeout=timeout,
+            query=query,
         )
 
         # Get initial device count
@@ -78,21 +79,22 @@ class DeviceWaitService:
         if show_progress:
             if initial_count >= target_count:
                 logger.info(
-                    "Found %d device(s), target reached immediately", initial_count
+                    "target_reached_immediately",
+                    device_count=initial_count,
                 )
                 return initial_devices[:target_count]
             elif initial_count > 0:
                 logger.info(
-                    "Found %d device(s), waiting for %d more... (timeout: %.0fs)",
-                    initial_count,
-                    target_count - initial_count,
-                    timeout,
+                    "found_partial_devices_waiting_for_more",
+                    found_count=initial_count,
+                    remaining_count=target_count - initial_count,
+                    timeout=timeout,
                 )
             else:
                 logger.info(
-                    "Waiting for %d device(s)... (timeout: %.0fs)",
-                    target_count,
-                    timeout,
+                    "waiting_for_devices",
+                    target_count=target_count,
+                    timeout=timeout,
                 )
 
         # Create wait state
@@ -115,10 +117,10 @@ class DeviceWaitService:
                 state.add_device(device)
                 if show_progress:
                     logger.info(
-                        "Found device: %s [%d/%d]",
-                        device.serial or device.name,
-                        len(state.found_devices),
-                        target_count,
+                        "found_device",
+                        device_id=device.serial or device.name,
+                        found_count=len(state.found_devices),
+                        target_count=target_count,
                     )
 
                 if state.is_target_reached:
@@ -129,9 +131,9 @@ class DeviceWaitService:
                 state.remove_device(device)
                 if show_progress and len(state.found_devices) < old_count:
                     logger.warning(
-                        "Device removed. Remaining: [%d/%d]",
-                        len(state.found_devices),
-                        target_count,
+                        "device_removed",
+                        remaining_count=len(state.found_devices),
+                        target_count=target_count,
                     )
 
         try:
@@ -145,9 +147,9 @@ class DeviceWaitService:
 
             if state.is_timeout and show_progress:
                 logger.warning(
-                    "Timeout reached. Found %d of %d devices.",
-                    len(state.found_devices),
-                    target_count,
+                    "timeout_reached",
+                    found_count=len(state.found_devices),
+                    target_count=target_count,
                 )
 
             return state.found_devices[:target_count] if state.found_devices else []

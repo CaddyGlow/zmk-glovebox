@@ -1,6 +1,5 @@
 """Configuration management commands."""
 
-import logging
 from typing import Annotated, Any
 
 import typer
@@ -18,9 +17,10 @@ from glovebox.config.models.firmware import (
     FirmwareFlashConfig,
 )
 from glovebox.config.models.user import UserConfigData
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 @handle_errors

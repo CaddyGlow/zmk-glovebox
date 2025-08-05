@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 
 if TYPE_CHECKING:
     pass
@@ -13,7 +15,7 @@ if TYPE_CHECKING:
 from glovebox.firmware.flash.models import BlockDevice
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class MacOSFlashOS:
@@ -60,11 +62,13 @@ class MacOSFlashOS:
                             mount_points.append(mount_point)
 
             if not mount_points:
-                logger.warning("No mount points found for device %s", device.name)
+                logger.warning("no_mount_points_found", device_name=device.name)
 
         except subprocess.TimeoutExpired as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Timeout mounting device %s", device.name, exc_info=exc_info)
+            logger.error(
+                "timeout_mounting_device", device_name=device.name, exc_info=exc_info
+            )
             raise OSError(f"Timeout mounting device {device.name}") from e
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
@@ -115,14 +119,14 @@ class MacOSFlashOS:
                 check=False,
             )
             if result.returncode == 0:
-                logger.debug("Successfully unmounted device %s", device.name)
+                logger.debug("successfully_unmounted_device", device_name=device.name)
                 unmounted = True
 
         except subprocess.TimeoutExpired:
-            logger.debug("Unmount timed out for %s, likely expected", device.name)
+            logger.debug("unmount_timed_out_likely_expected", device_name=device.name)
             unmounted = True  # Device probably disconnected
         except Exception as e:
-            logger.warning("Error during unmount: %s", e)
+            logger.warning("error_during_unmount", error=str(e))
 
         return unmounted
 
@@ -130,12 +134,18 @@ class MacOSFlashOS:
         """Copy firmware file to mounted device on macOS."""
         try:
             dest_path = Path(mount_point) / firmware_file.name
-            logger.info("Copying %s to %s", firmware_file, dest_path)
+            logger.info(
+                "copying_firmware_file",
+                firmware_file=str(firmware_file),
+                dest_path=str(dest_path),
+            )
             shutil.copy2(firmware_file, mount_point)
             return True
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to copy firmware file: %s", e, exc_info=exc_info)
+            logger.error(
+                "failed_to_copy_firmware_file", error=str(e), exc_info=exc_info
+            )
             return False
 
     def sync_filesystem(self, mount_point: str) -> bool:
@@ -146,8 +156,8 @@ class MacOSFlashOS:
             logger.debug("sync command completed successfully")
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            logger.warning("sync command failed: %s", e)
+            logger.warning("sync_command_failed", error=str(e))
             return False
         except Exception as e:
-            logger.warning("Unexpected error during sync: %s", e)
+            logger.warning("unexpected_error_during_sync", error=str(e))
             return False

@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 
 if TYPE_CHECKING:
     pass
@@ -16,7 +18,7 @@ if TYPE_CHECKING:
 from glovebox.firmware.flash.models import BlockDevice
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class LinuxFlashOS:
@@ -33,11 +35,13 @@ class LinuxFlashOS:
 
         # Check if device node exists
         if not Path(device_path).exists():
-            logger.warning("Device node %s does not exist yet, waiting...", device_path)
+            logger.warning(
+                "device_node_does_not_exist_waiting", device_path=device_path
+            )
             # Wait up to 3 seconds for device node to appear
             for _ in range(30):
                 if Path(device_path).exists():
-                    logger.info("Device node %s is now available", device_path)
+                    logger.info("device_node_now_available", device_path=device_path)
                     break
                 time.sleep(0.1)
             else:
@@ -65,7 +69,7 @@ class LinuxFlashOS:
                     # Verify the mount point actually exists (device might have crashed)
                     if Path(mount_point).exists():
                         mount_points.append(mount_point)
-                        logger.debug("Mount point verified: %s", mount_point)
+                        logger.debug("mount_point_verified", mount_point=mount_point)
                     else:
                         logger.warning(
                             "Mount reported success but mount point %s doesn't exist (device may have crashed)",
@@ -111,7 +115,7 @@ class LinuxFlashOS:
                             )
 
             if not mount_points:
-                logger.warning("Could not mount device %s", device_path)
+                logger.warning("could_not_mount_device", device_path=device_path)
 
         except subprocess.TimeoutExpired as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
@@ -191,7 +195,7 @@ class LinuxFlashOS:
 
             if result.returncode == 0:
                 unmounted = True
-                logger.debug("Successfully unmounted %s", device_path)
+                logger.debug("successfully_unmounted", device_path=device_path)
             else:
                 logger.debug(
                     "Unmount finished with exit code %s, device likely disconnected",
@@ -201,10 +205,10 @@ class LinuxFlashOS:
                 unmounted = True
 
         except subprocess.TimeoutExpired:
-            logger.debug("Unmount timed out for %s, likely expected", device_path)
+            logger.debug("unmount_timed_out_likely_expected", device_path=device_path)
             unmounted = True  # Device probably disconnected
         except Exception as e:
-            logger.warning("Error during unmount: %s", e)
+            logger.warning("error_during_unmount", error=str(e))
 
         return unmounted
 
@@ -212,12 +216,18 @@ class LinuxFlashOS:
         """Copy firmware file to mounted device on Linux."""
         try:
             dest_path = Path(mount_point) / firmware_file.name
-            logger.info("Copying %s to %s", firmware_file, dest_path)
+            logger.info(
+                "copying_firmware_file",
+                firmware_file=str(firmware_file),
+                dest_path=str(dest_path),
+            )
             shutil.copy2(firmware_file, mount_point)
             return True
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to copy firmware file: %s", e, exc_info=exc_info)
+            logger.error(
+                "failed_to_copy_firmware_file", error=str(e), exc_info=exc_info
+            )
             return False
 
     def sync_filesystem(self, mount_point: str) -> bool:
@@ -227,7 +237,7 @@ class LinuxFlashOS:
             fd = os.open(mount_point, os.O_RDONLY)
             os.fsync(fd)
             os.close(fd)
-            logger.debug("fsync successful on directory %s", mount_point)
+            logger.debug("fsync_successful_on_directory", mount_point=mount_point)
             return True
         except OSError as e:
             logger.warning(
@@ -235,5 +245,5 @@ class LinuxFlashOS:
             )
             return False
         except Exception as e:
-            logger.warning("Unexpected error during fsync: %s", e)
+            logger.warning("unexpected_error_during_fsync", error=str(e))
             return False

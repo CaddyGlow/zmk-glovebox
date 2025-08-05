@@ -1,7 +1,6 @@
 """Recursive descent parser for device tree source files."""
 
-import logging
-
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 from glovebox.layout.parsers.ast_nodes import (
     DTComment,
     DTConditional,
@@ -14,10 +13,10 @@ from glovebox.layout.parsers.ast_nodes import (
 from glovebox.layout.parsers.tokenizer import Token, TokenType, tokenize_dt
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
-class DTParser:
+class DTParser(StructlogMixin):
     """Recursive descent parser for device tree source."""
 
     def __init__(self, tokens: list[Token]) -> None:

@@ -1,6 +1,5 @@
 """Cache debug CLI command."""
 
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -9,13 +8,14 @@ from rich.console import Console
 from glovebox.cli.core.command_base import IOCommand
 from glovebox.cli.decorators.error_handling import handle_errors
 from glovebox.cli.workspace_display_utils import generate_workspace_cache_key
+from glovebox.core.structlog_logger import get_struct_logger
 
 from .utils import (
     get_cache_manager_and_service,
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 console = Console()
 
 

@@ -8,12 +8,14 @@ from typing import TYPE_CHECKING, Any
 import typer
 from click import Context as ClickContext
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 
 if TYPE_CHECKING:
     # Type hints only - not loaded at runtime
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def with_layout_context(
@@ -89,7 +91,9 @@ def with_layout_context(
                     # Use the helper to resolve JSON file path
                     resolved_json_file = resolve_json_file_path(json_file)
                     if resolved_json_file:
-                        logger.debug(f"Resolved JSON file: {resolved_json_file}")
+                        logger.debug(
+                            "resolved_json_file", file_path=str(resolved_json_file)
+                        )
                         kwargs["resolved_json_file"] = resolved_json_file
                 except Exception as e:
                     print_error_message(f"Failed to resolve JSON file: {e}")
@@ -117,7 +121,9 @@ def with_layout_context(
                             profile_param or default_profile, None, None
                         )
                     if keyboard_profile:
-                        logger.debug(f"Using profile: {keyboard_profile}")
+                        logger.debug(
+                            "using_keyboard_profile", profile=str(keyboard_profile)
+                        )
                         kwargs["keyboard_profile"] = keyboard_profile
                 except Exception as e:
                     print_error_message(f"Failed to create keyboard profile: {e}")

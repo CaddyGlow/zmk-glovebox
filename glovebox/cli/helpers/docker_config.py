@@ -4,9 +4,10 @@ import logging
 from pathlib import Path
 
 from glovebox.compilation.models import DockerUserConfig
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class DockerConfigBuilder:

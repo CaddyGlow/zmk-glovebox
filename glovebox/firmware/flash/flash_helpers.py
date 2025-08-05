@@ -1,16 +1,16 @@
 """Helper functions for flash operations to reduce duplication."""
 
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.models import FlashResult
 
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def create_device_result(

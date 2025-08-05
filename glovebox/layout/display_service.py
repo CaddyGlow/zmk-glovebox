@@ -1,7 +1,8 @@
 """Service for displaying keyboard layouts in various formats."""
 
-import logging
 from typing import TYPE_CHECKING
+
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ from glovebox.layout.formatting import (
 from glovebox.layout.models import LayoutData
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class LayoutDisplayService:
@@ -58,7 +59,11 @@ class LayoutDisplayService:
         Raises:
             KeymapError: If display generation fails
         """
-        logger.info("Generating keyboard layout display")
+        logger.info(
+            "generating_keyboard_layout_display",
+            operation="show",
+            view_mode=view_mode.value,
+        )
 
         try:
             # Extract layout information
@@ -74,14 +79,19 @@ class LayoutDisplayService:
 
             # Handle missing or mismatched layer names
             if not layer_names:
-                logger.warning("No layer names found, using default names")
+                logger.warning(
+                    "no_layer_names_found",
+                    operation="show",
+                    action="using_default_names",
+                )
                 layer_names = [f"Layer {i}" for i in range(len(layers))]
             elif len(layer_names) != len(layers):
                 logger.warning(
-                    "Mismatch between layer names (%d) and layer data (%d). "
-                    "Using available names.",
-                    len(layer_names),
-                    len(layers),
+                    "layer_names_data_mismatch",
+                    operation="show",
+                    layer_names_count=len(layer_names),
+                    layers_count=len(layers),
+                    action="using_available_names",
                 )
                 if len(layer_names) < len(layers):
                     layer_names = layer_names + [
@@ -112,10 +122,18 @@ class LayoutDisplayService:
             keymap_formatting = keyboard_config.keymap.formatting
 
             if keymap_formatting.rows is not None:
-                logger.debug("Using keymap.formatting.rows from profile")
+                logger.debug(
+                    "using_profile_keymap_formatting",
+                    operation="show",
+                    source="keymap.formatting.rows",
+                )
                 all_rows = keymap_formatting.rows
             elif display_config.layout_structure is not None:
-                logger.debug("Using layout_structure.rows from display config")
+                logger.debug(
+                    "using_display_config_structure",
+                    operation="show",
+                    source="layout_structure.rows",
+                )
                 layout_structure = display_config.layout_structure
                 # Handle LayoutStructure: dict[str, list[list[int]]]
                 all_rows = []
@@ -134,7 +152,11 @@ class LayoutDisplayService:
                             row.extend(segment)
                         all_rows.append(row)
             else:
-                logger.info("No row structure configured, using default")
+                logger.info(
+                    "no_row_structure_configured",
+                    operation="show",
+                    action="using_default",
+                )
                 all_rows = self._get_default_layout_rows()
 
             # Create a layout config
@@ -172,7 +194,9 @@ class LayoutDisplayService:
             )
 
         except Exception as e:
-            logger.error("Error generating layout display: %s", e)
+            logger.error(
+                "layout_display_generation_failed", operation="show", error=str(e)
+            )
             raise KeymapError(f"Failed to generate layout display: {e}") from e
 
     def _get_default_layout_rows(self) -> list[list[int]]:

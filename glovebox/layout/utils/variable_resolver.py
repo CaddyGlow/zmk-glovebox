@@ -5,9 +5,10 @@ allowing users to define global variables and reference them throughout the layo
 using ${variable_name} syntax.
 """
 
-import logging
 import re
 from typing import Any
+
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 
 
 class VariableError(Exception):
@@ -26,7 +27,7 @@ class InvalidVariableExpressionError(VariableError):
     """Raised when variable expression syntax is invalid."""
 
 
-class VariableResolver:
+class VariableResolver(StructlogMixin):
     """Handles variable substitution in layout JSON data.
 
     Supports the following variable syntax:
@@ -43,7 +44,7 @@ class VariableResolver:
         """
         self.variables = variables
         self._resolved_cache: dict[str, Any] = {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
 
     def resolve_value(self, value: Any) -> Any:
         """Resolve variables in a single value.

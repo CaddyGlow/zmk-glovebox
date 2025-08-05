@@ -1,6 +1,6 @@
 """Behavior service for tracking and managing ZMK behaviors."""
 
-import logging
+from glovebox.core.structlog_logger import get_struct_logger
 
 from ...protocols.behavior_protocols import BehaviorRegistryProtocol
 from .models import (
@@ -8,7 +8,7 @@ from .models import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class BehaviorRegistryImpl:

@@ -1,8 +1,9 @@
 """Flash method implementations."""
 
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from glovebox.core.structlog_logger import get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -15,7 +16,7 @@ from glovebox.firmware.flash.models import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class USBFlasher:
@@ -40,7 +41,7 @@ class USBFlasher:
         config: USBFlashConfig,
     ) -> FlashResult:
         """Flash device using USB method."""
-        logger.info("Starting USB flash operation for device: %s", device.name)
+        logger.info("starting_usb_flash_operation", device_name=device.name)
         result = FlashResult(success=True)
 
         try:
@@ -55,7 +56,7 @@ class USBFlasher:
                 return result
 
             # Mount the device with timeout
-            logger.debug("Mounting device: %s", device.name)
+            logger.debug("mounting_device", device_name=device.name)
             mount_points = self.usb_adapter.mount_device(device)
 
             if not mount_points or not mount_points[0]:
@@ -64,12 +65,14 @@ class USBFlasher:
                 return result
 
             mount_point = Path(mount_points[0])
-            logger.debug("Device mounted at: %s", mount_point)
+            logger.debug("device_mounted", mount_point=str(mount_point))
 
             try:
                 # Copy firmware to device with timeout
                 logger.debug(
-                    "Copying firmware %s to device at %s", firmware_file, mount_point
+                    "copying_firmware_to_device",
+                    firmware_file=str(firmware_file),
+                    mount_point=str(mount_point),
                 )
                 target_file = mount_point / firmware_file.name
 
@@ -87,21 +90,21 @@ class USBFlasher:
 
                 # Sync filesystem if configured
                 if config.sync_after_copy:
-                    logger.debug("Syncing filesystem")
+                    logger.debug("syncing_filesystem")
                     self._sync_device(mount_point)
 
                 result.add_message(
                     f"Successfully flashed to {device.description or device.path}"
                 )
-                logger.info("USB flash completed successfully")
+                logger.info("usb_flash_completed_successfully")
 
             finally:
                 # Always unmount the device
-                logger.debug("Unmounting device")
+                logger.debug("unmounting_device")
                 self.usb_adapter.unmount_device(device)
 
         except Exception as e:
-            logger.error("USB flash failed: %s", e)
+            logger.error("usb_flash_failed", error=str(e))
             result.success = False
             result.add_error(f"USB flash failed: {str(e)}")
 
@@ -110,18 +113,18 @@ class USBFlasher:
     def list_devices(self, config: USBFlashConfig) -> list[BlockDevice]:
         """List devices compatible with USB flashing."""
         try:
-            logger.debug("Listing USB devices with query: %s", config.device_query)
+            logger.debug("listing_usb_devices", device_query=config.device_query)
             devices = self.usb_adapter.list_matching_devices(config.device_query)
             # Filter to only BlockDevice for flashing
             block_devices = [d for d in devices if isinstance(d, BlockDevice)]
             logger.debug(
-                "Found %d USB devices (%d are block devices)",
-                len(devices),
-                len(block_devices),
+                "found_usb_devices",
+                total_devices=len(devices),
+                block_devices=len(block_devices),
             )
             return block_devices
         except Exception as e:
-            logger.error("Failed to list USB devices: %s", e)
+            logger.error("failed_to_list_usb_devices", error=str(e))
             return []
 
     def check_available(self) -> bool:
@@ -135,13 +138,13 @@ class USBFlasher:
     def validate_config(self, config: USBFlashConfig) -> bool:
         """Validate USB-specific configuration."""
         if not config.device_query:
-            logger.error("Device query not specified")
+            logger.error("device_query_not_specified")
             return False
         if config.mount_timeout <= 0:
-            logger.error("Mount timeout must be positive")
+            logger.error("mount_timeout_must_be_positive")
             return False
         if config.copy_timeout <= 0:
-            logger.error("Copy timeout must be positive")
+            logger.error("copy_timeout_must_be_positive")
             return False
         return True
 
@@ -182,7 +185,7 @@ class USBFlasher:
                 if hasattr(flash_ops, "sync_filesystem"):
                     flash_ops.sync_filesystem(str(mount_point))
         except Exception as e:
-            logger.warning("Failed to sync device filesystem: %s", e)
+            logger.warning("failed_to_sync_device_filesystem", error=str(e))
 
 
 def create_usb_flasher(

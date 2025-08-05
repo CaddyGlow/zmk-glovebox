@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.models import BlockDevice
 
 from .os_utils import windows_to_wsl_path, wsl_to_windows_path
@@ -15,7 +16,7 @@ from .os_utils import windows_to_wsl_path, wsl_to_windows_path
 if TYPE_CHECKING:
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class WSL2FlashOS:
@@ -189,7 +190,9 @@ class WSL2FlashOS:
             raise OSError(f"Failed to detect drives via PowerShell: {e}") from e
         except subprocess.TimeoutExpired as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("PowerShell command timed out: %s", e, exc_info=exc_info)
+            logger.error(
+                "powershell_command_timed_out", error=str(e), exc_info=exc_info
+            )
             raise OSError(f"PowerShell command timed out: {e}") from e
 
         return mount_points
@@ -266,7 +269,9 @@ class WSL2FlashOS:
                             timeout=5,
                             check=True,
                         )
-                        logger.debug("Successfully dismounted %s", drive_letter)
+                        logger.debug(
+                            "successfully_dismounted", drive_letter=drive_letter
+                        )
                     except (
                         subprocess.CalledProcessError,
                         subprocess.TimeoutExpired,
@@ -288,7 +293,7 @@ class WSL2FlashOS:
             json.JSONDecodeError,
         ) as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.warning("Error during unmount: %s", e, exc_info=exc_info)
+            logger.warning("error_during_unmount", error=str(e), exc_info=exc_info)
             return False
 
     def copy_firmware_file(self, firmware_file: Path, mount_point: str) -> bool:
@@ -331,15 +336,17 @@ class WSL2FlashOS:
                 dest_path.exists()
                 and dest_path.stat().st_size == firmware_file.stat().st_size
             ):
-                logger.debug("File copied successfully to %s", dest_path)
+                logger.debug("file_copied_successfully", dest_path=str(dest_path))
                 return True
             else:
-                logger.error("File copy verification failed for %s", dest_path)
+                logger.error("file_copy_verification_failed", dest_path=str(dest_path))
                 return False
 
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Failed to copy firmware file: %s", e, exc_info=exc_info)
+            logger.error(
+                "failed_to_copy_firmware_file", error=str(e), exc_info=exc_info
+            )
             return False
 
     def sync_filesystem(self, mount_point: str) -> bool:
@@ -365,15 +372,19 @@ class WSL2FlashOS:
             )
 
             if result.returncode == 0:
-                logger.debug("Successfully synced filesystem for %s", mount_point)
+                logger.debug("successfully_synced_filesystem", mount_point=mount_point)
                 return True
             else:
-                logger.warning("Filesystem sync returned code %s", result.returncode)
+                logger.warning(
+                    "filesystem_sync_returned_code", return_code=result.returncode
+                )
                 return False
 
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.warning("Error during filesystem sync: %s", e, exc_info=exc_info)
+            logger.warning(
+                "error_during_filesystem_sync", error=str(e), exc_info=exc_info
+            )
             # Try alternative approach
             try:
                 subprocess.run(["sync"], check=True, timeout=5)

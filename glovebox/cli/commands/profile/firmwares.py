@@ -1,7 +1,6 @@
 """Profile firmware management commands."""
 
 import json
-import logging
 from typing import Any
 
 import typer
@@ -18,9 +17,10 @@ from glovebox.cli.helpers import (
 )
 from glovebox.cli.helpers.theme import Colors, Icons
 from glovebox.config.keyboard_profile import load_keyboard_config
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def complete_profile_names(incomplete: str) -> list[str]:

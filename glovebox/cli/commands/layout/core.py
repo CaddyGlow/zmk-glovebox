@@ -14,6 +14,7 @@ from glovebox.cli.decorators import (
     with_metrics,
     with_profile,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout import ViewMode
 
 
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from glovebox.layout.service import LayoutService
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class CompileLayoutCommand(ProfileAwareLayoutCommand):

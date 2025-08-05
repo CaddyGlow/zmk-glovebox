@@ -4,6 +4,7 @@ import logging
 from functools import lru_cache
 
 from glovebox.adapters import create_file_adapter, create_template_adapter
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout import (
     LayoutService,
     ZmkFileContentGenerator,
@@ -17,7 +18,7 @@ from glovebox.layout.behavior.formatter import BehaviorFormatterImpl
 from glovebox.layout.parsers import create_zmk_keymap_parser
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 @lru_cache(maxsize=1)

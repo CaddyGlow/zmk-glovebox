@@ -1,6 +1,5 @@
 import hashlib
 import json
-import logging
 from collections import OrderedDict
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -8,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import jsonpatch  # type: ignore
 from deepdiff import DeepDiff
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout.models import LayoutData
 
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from glovebox.layout.diffing.models import LayoutDiff
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class LayoutDiffSystem:

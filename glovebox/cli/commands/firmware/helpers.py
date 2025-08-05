@@ -35,10 +35,11 @@ from glovebox.core.file_operations.models import (
     CompilationProgress,
     CompilationProgressCallback,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.models import BuildResult
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def resolve_compilation_type(
@@ -323,7 +324,9 @@ def process_compilation_output(
 
     except Exception as e:
         exc_info = logger.isEnabledFor(logging.DEBUG)
-        logger.error("Failed to process compilation output: %s", e, exc_info=exc_info)
+        logger.error(
+            "failed_to_process_compilation_output", error=str(e), exc_info=exc_info
+        )
         print_error_message(f"Failed to create output files: {str(e)}")
 
 

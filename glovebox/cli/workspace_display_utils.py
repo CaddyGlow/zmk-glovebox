@@ -9,9 +9,10 @@ from glovebox.compilation.cache.workspace_cache_service import (
     ZmkWorkspaceCacheService,
 )
 from glovebox.core.cache.models import CacheKey
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def format_size(size_bytes: float) -> str:

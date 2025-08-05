@@ -15,10 +15,10 @@ For constants, import from glovebox.cli.helpers.parameter_helpers instead.
 
 from __future__ import annotations
 
-import logging
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 # This module is now empty - all functionality has been moved to:
 # - IOCommand class in glovebox.cli.core.command_base

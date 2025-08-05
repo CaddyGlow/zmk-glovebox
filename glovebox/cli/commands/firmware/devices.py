@@ -19,10 +19,11 @@ from glovebox.cli.helpers.theme import (
     get_icon_mode_from_context,
     get_themed_console,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.firmware.flash.models import BlockDevice
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 @handle_errors

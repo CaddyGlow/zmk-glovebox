@@ -1,7 +1,6 @@
 """Keyboard information commands (list, show)."""
 
 import json
-import logging
 from typing import Any
 
 import typer
@@ -21,9 +20,10 @@ from glovebox.config.keyboard_profile import (
     get_available_keyboards,
     load_keyboard_config,
 )
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 def _get_keyboard_field_defaults() -> dict[str, Any]:

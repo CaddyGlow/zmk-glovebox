@@ -4,6 +4,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.utils.stream_process import OutputMiddleware
 
 
@@ -11,7 +12,7 @@ if TYPE_CHECKING:
     from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class BuildOutputFilterMiddleware(OutputMiddleware[str]):

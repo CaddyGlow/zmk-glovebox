@@ -5,6 +5,8 @@ import queue
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 
 if TYPE_CHECKING:
     from glovebox.config.profile import KeyboardProfile
@@ -22,7 +24,7 @@ from glovebox.protocols import FileAdapterProtocol, USBAdapterProtocol
 from glovebox.protocols.flash_protocols import FlasherProtocol
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FlashService:
@@ -94,9 +96,9 @@ class FlashService:
             to the appropriate device sides.
         """
         logger.info(
-            "Starting firmware flash operation using method selection with wait=%s, paired=%s",
-            wait,
-            paired_mode,
+            "starting_firmware_flash_operation",
+            wait=wait,
+            paired_mode=paired_mode,
         )
         result = FlashResult(success=True, paired_mode=paired_mode)
 
@@ -124,9 +126,9 @@ class FlashService:
             if paired_mode:
                 firmware_side = detect_firmware_side(firmware_file)
                 logger.info(
-                    "Detected firmware side: %s for file %s",
-                    firmware_side.value,
-                    firmware_file.name,
+                    "detected_firmware_side",
+                    firmware_side=firmware_side.value,
+                    filename=firmware_file.name,
                 )
 
             # Get flash method configs from profile or use defaults
@@ -135,7 +137,7 @@ class FlashService:
             # Create USB flasher
             flasher = self._create_usb_flasher(flash_configs[0])
 
-            logger.info("Selected flasher method: %s", type(flasher).__name__)
+            logger.info("selected_flasher_method", method=type(flasher).__name__)
 
             # Get device query for filtering
             from glovebox.firmware.flash.flash_helpers import get_device_query
@@ -186,7 +188,7 @@ class FlashService:
 
         except Exception as e:
             exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Flash operation failed: %s", e, exc_info=exc_info)
+            logger.error("flash_operation_failed", error=str(e), exc_info=exc_info)
             result.success = False
             result.add_error(f"Flash operation failed: {str(e)}")
 
@@ -216,7 +218,7 @@ class FlashService:
             # Select the flasher
             flasher = self._create_usb_flasher(flash_configs[0])
 
-            logger.info("Using flasher method: %s", type(flasher).__name__)
+            logger.info("using_flasher_method", method=type(flasher).__name__)
 
             # List devices using the selected flasher
             devices = flasher.list_devices(flash_configs[0])
@@ -246,7 +248,7 @@ class FlashService:
                 result.device_details.append(device_info)
 
         except Exception as e:
-            logger.error("Error listing devices: %s", e)
+            logger.error("error_listing_devices", error=str(e))
             result.success = False
             result.add_error(f"Failed to list devices: {str(e)}")
 
@@ -286,9 +288,9 @@ class FlashService:
         monitoring = True
 
         logger.info(
-            "Flashing devices as they become available: target=%d, timeout=%.1fs",
-            target_count,
-            timeout,
+            "flashing_devices_iteratively",
+            target_count=target_count,
+            timeout=timeout,
         )
 
         # Track devices we've already seen to avoid re-flashing
@@ -322,7 +324,7 @@ class FlashService:
 
         def signal_handler(sig: int, frame: Any) -> None:
             nonlocal monitoring
-            logger.info("Stopping device monitoring...")
+            logger.info("stopping_device_monitoring")
             monitoring = False
 
         # Set up signal handler for graceful shutdown
@@ -340,10 +342,10 @@ class FlashService:
                 if hasattr(detector, "start_monitoring"):
                     detector.start_monitoring()
 
-                logger.info("Real-time device monitoring started")
+                logger.info("realtime_device_monitoring_started")
             else:
                 # Fallback to polling if callback system not available
-                logger.warning("Callback system not available, falling back to polling")
+                logger.warning("callback_system_unavailable_fallback_to_polling")
                 self._flash_devices_polling(
                     flasher,
                     flash_config,
@@ -371,7 +373,7 @@ class FlashService:
                         device_queue.put(device)
                         seen_device_serials.add(device_serial)
             except Exception as e:
-                logger.warning("Failed to get initial devices: %s", e)
+                logger.warning("failed_to_get_initial_devices", error=str(e))
 
             # Main processing loop
             while (
@@ -397,10 +399,10 @@ class FlashService:
                             break
 
                         logger.info(
-                            "Found new device %d/%d: %s",
-                            devices_flashed + 1,
-                            target_count,
-                            new_device.description
+                            "found_new_device",
+                            device_count=devices_flashed + 1,
+                            target_count=target_count,
+                            device_name=new_device.description
                             or getattr(new_device, "name", "Unknown"),
                         )
 
@@ -430,24 +432,22 @@ class FlashService:
 
                             if show_progress:
                                 logger.info(
-                                    "Successfully flashed device %d/%d",
-                                    devices_flashed,
-                                    target_count,
+                                    "successfully_flashed_device",
+                                    devices_flashed=devices_flashed,
+                                    target_count=target_count,
                                 )
                         else:
                             # Device flash failed - don't add to seen list so it can be retried
                             logger.warning(
-                                "Failed to flash device %s, will retry if reconnected",
-                                new_device.description
+                                "failed_to_flash_device_will_retry",
+                                device_name=new_device.description
                                 or getattr(new_device, "name", "Unknown"),
                             )
                             # Don't break on failure, continue trying with other devices
 
                         # Check if we've reached our target
                         if devices_flashed >= target_count:
-                            logger.info(
-                                "Target count reached, stopping device monitoring"
-                            )
+                            logger.info("target_count_reached_stopping_monitoring")
                             monitoring = False
                             break
 
@@ -456,12 +456,12 @@ class FlashService:
                     continue
                 except KeyboardInterrupt:
                     # User pressed Ctrl+C
-                    logger.info("Flash operation interrupted by user")
+                    logger.info("flash_operation_interrupted_by_user")
                     monitoring = False
                     break
                 except Exception as e:
                     # Actual error occurred
-                    logger.debug("Queue processing error: %s", e)
+                    logger.debug("queue_processing_error", error=str(e))
                     continue
 
         finally:
@@ -472,15 +472,15 @@ class FlashService:
                 try:
                     detector.unregister_callback(device_callback)
                 except Exception as e:
-                    logger.debug("Failed to unregister callback: %s", e)
+                    logger.debug("failed_to_unregister_callback", error=str(e))
 
         if devices_flashed < target_count:
             elapsed_time = time.time() - start_time
             logger.warning(
-                "Flashed %d/%d devices before timeout (%.1fs elapsed)",
-                devices_flashed,
-                target_count,
-                elapsed_time,
+                "flashed_devices_before_timeout",
+                devices_flashed=devices_flashed,
+                target_count=target_count,
+                elapsed_time=elapsed_time,
             )
 
     def _flash_devices_polling(
@@ -505,7 +505,7 @@ class FlashService:
         devices_flashed = 0
         seen_device_serials = set()
 
-        logger.info("Using polling-based device detection (fallback)")
+        logger.info("using_polling_based_device_detection_fallback")
 
         while devices_flashed < target_count and (time.time() - start_time) < timeout:
             try:
@@ -530,10 +530,10 @@ class FlashService:
                         break
 
                     logger.info(
-                        "Found new device %d/%d: %s",
-                        devices_flashed + 1,
-                        target_count,
-                        device.description or device.name,
+                        "found_new_device_polling",
+                        device_count=devices_flashed + 1,
+                        target_count=target_count,
+                        device_name=device.description or device.name,
                     )
 
                     # Determine firmware side if in paired mode
@@ -555,13 +555,13 @@ class FlashService:
 
                         if show_progress:
                             logger.info(
-                                "Successfully flashed device %d/%d",
-                                devices_flashed,
-                                target_count,
+                                "successfully_flashed_device_polling",
+                                devices_flashed=devices_flashed,
+                                target_count=target_count,
                             )
 
                     if devices_flashed >= target_count:
-                        logger.info("Target count reached, stopping device monitoring")
+                        logger.info("target_count_reached_stopping_monitoring_polling")
                         break
 
                 if devices_flashed >= target_count:
@@ -571,7 +571,9 @@ class FlashService:
 
             except Exception as e:
                 exc_info = logger.isEnabledFor(logging.DEBUG)
-                logger.error("Error during device detection: %s", e, exc_info=exc_info)
+                logger.error(
+                    "error_during_device_detection", error=str(e), exc_info=exc_info
+                )
                 time.sleep(poll_interval)
 
     def _flash_single_device(
@@ -608,9 +610,9 @@ class FlashService:
 
         # Verify device is ready before attempting flash
         if not device.is_ready():
-            logger.info("Waiting for device %s to be ready...", device.name)
+            logger.info("waiting_for_device_ready", device_name=device.name)
             if not device.wait_for_ready(timeout=5.0):
-                logger.error("Device %s did not become ready in time", device.name)
+                logger.error("device_not_ready_in_time", device_name=device.name)
                 result.devices_failed += 1
                 device_details = create_device_result(
                     device, False, "Device node not ready"
@@ -767,7 +769,7 @@ class FlashService:
             return list(profile.keyboard_config.flash_methods)
 
         # Fallback: Create default USB configuration
-        logger.debug("No profile flash methods, using default USB configuration")
+        logger.debug("no_profile_flash_methods_using_default_usb_configuration")
 
         # Handle query parameter logic
         if query == "":

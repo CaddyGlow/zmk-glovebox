@@ -1,10 +1,10 @@
 """Behavior formatting service for converting JSON bindings to DTSI format."""
 
-import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from glovebox.config.models.zmk import MACRO_PLACEHOLDER
+from glovebox.core.structlog_logger import StructlogMixin, get_struct_logger
 
 
 if TYPE_CHECKING:
@@ -21,10 +21,10 @@ from .models import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
-class BehaviorFormatterImpl:
+class BehaviorFormatterImpl(StructlogMixin):
     """Implementation of behavior formatter."""
 
     def __init__(

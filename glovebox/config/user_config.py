@@ -20,11 +20,11 @@ from glovebox.adapters.config_file_adapter import (
 )
 from glovebox.config.models import UserConfigData
 from glovebox.core.errors import ConfigError
-from glovebox.core.logging import get_logger
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.utils.xdg import get_xdg_config_dir
 
 
-logger = get_logger(__name__)
+logger = get_struct_logger(__name__)
 
 # Environment variable prefixes
 ENV_PREFIX = "GLOVEBOX_"

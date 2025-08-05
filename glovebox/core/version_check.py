@@ -15,10 +15,11 @@ from glovebox.config.user_config import UserConfig
 from glovebox.core.cache import create_cache_from_user_config
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.models import CacheKey
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.utils.xdg import get_version_check_state_file
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class VersionInfo(BaseModel):
@@ -53,7 +54,7 @@ class ZmkVersionChecker:
             user_config: User configuration instance
             cache: Cache manager instance
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
         self._user_config = user_config
         self._cache = cache
 
@@ -76,7 +77,7 @@ class ZmkVersionChecker:
 
             # Check if we're in a rate limit backoff period
             if not force and self._is_rate_limited():
-                self.logger.debug("Skipping version check due to rate limit backoff")
+                self.logger.debug("version_check_skipped", reason="rate_limit_backoff")
                 return VersionCheckResult(
                     has_update=False,
                     current_version=self._get_current_zmk_version(),
@@ -122,7 +123,10 @@ class ZmkVersionChecker:
             return result
 
         except Exception as e:
-            self.logger.debug("Failed to check for ZMK updates: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.debug(
+                "zmk_version_check_failed", error=str(e), exc_info=exc_info
+            )
             return VersionCheckResult(
                 has_update=False, current_version=None, last_check=datetime.now()
             )
@@ -145,7 +149,7 @@ class ZmkVersionChecker:
             return "stable"  # Default assumption
 
         except Exception as e:
-            self.logger.debug("Could not determine current ZMK version: %s", e)
+            self.logger.debug("zmk_version_detection_failed", error=str(e))
             return None
 
     def _fetch_latest_version(
@@ -167,13 +171,15 @@ class ZmkVersionChecker:
             with urllib.request.urlopen(req, timeout=10) as response:
                 if response.status == 403:
                     # Rate limit exceeded - cache a longer failure result
-                    self.logger.debug(
-                        "GitHub API rate limit exceeded, will retry later"
-                    )
+                    self.logger.debug("github_api_rate_limited", api="zmk_releases")
                     self._cache_rate_limit_failure()
                     return None
                 elif response.status != 200:
-                    self.logger.debug("GitHub API returned status %d", response.status)
+                    self.logger.debug(
+                        "github_api_error",
+                        status_code=response.status,
+                        api="zmk_releases",
+                    )
                     return None
 
                 releases = json.loads(response.read().decode())
@@ -190,12 +196,14 @@ class ZmkVersionChecker:
 
         except urllib.error.HTTPError as e:
             if e.code == 403:
-                self.logger.debug("GitHub API rate limit exceeded, will retry later")
+                self.logger.debug("github_api_rate_limited", api="zmk_releases")
                 self._cache_rate_limit_failure()
             else:
-                self.logger.debug("HTTP error fetching ZMK releases: %s", e)
+                self.logger.debug(
+                    "zmk_releases_http_error", error=str(e), status_code=e.code
+                )
         except Exception as e:
-            self.logger.debug("Failed to fetch ZMK releases from GitHub: %s", e)
+            self.logger.debug("zmk_releases_fetch_failed", error=str(e))
 
         return None
 
@@ -243,7 +251,7 @@ class ZmkVersionChecker:
             return VersionCheckResult(**cached_data)
 
         except Exception as e:
-            self.logger.debug("Failed to load cached version check: %s", e)
+            self.logger.debug("version_check_cache_load_failed", error=str(e))
             return None
 
     def _cache_result(
@@ -264,7 +272,7 @@ class ZmkVersionChecker:
             self._cache.set(cache_key, data, ttl=7 * 24 * 60 * 60)
 
         except Exception as e:
-            self.logger.debug("Failed to cache version check result: %s", e)
+            self.logger.debug("version_check_cache_save_failed", error=str(e))
 
     def _is_cache_valid(self, cached_result: VersionCheckResult) -> bool:
         """Check if cached result is still valid (less than 7 days old)."""
@@ -285,7 +293,7 @@ class ZmkVersionChecker:
                 ttl=6 * 60 * 60,
             )
         except Exception as e:
-            self.logger.debug("Failed to cache rate limit info: %s", e)
+            self.logger.debug("rate_limit_cache_failed", error=str(e))
 
     def _is_rate_limited(self) -> bool:
         """Check if we're currently in a rate limit backoff period."""
@@ -303,7 +311,7 @@ class ZmkVersionChecker:
 
             return False
         except Exception as e:
-            self.logger.debug("Failed to check rate limit status: %s", e)
+            self.logger.debug("rate_limit_check_failed", error=str(e))
             return False
 
     def disable_version_checks(self) -> None:
@@ -311,18 +319,24 @@ class ZmkVersionChecker:
         try:
             self._user_config._config.disable_version_checks = True
             self._user_config.save()
-            self.logger.info("Version checks disabled")
+            self.logger.info("version_checks_disabled")
         except Exception as e:
-            self.logger.error("Failed to disable version checks: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "version_checks_disable_failed", error=str(e), exc_info=exc_info
+            )
 
     def enable_version_checks(self) -> None:
         """Enable automatic version checks."""
         try:
             self._user_config._config.disable_version_checks = False
             self._user_config.save()
-            self.logger.info("Version checks enabled")
+            self.logger.info("version_checks_enabled")
         except Exception as e:
-            self.logger.error("Failed to enable version checks: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.error(
+                "version_checks_enable_failed", error=str(e), exc_info=exc_info
+            )
 
 
 def create_zmk_version_checker(
@@ -364,7 +378,7 @@ class GloveboxVersionChecker:
         Args:
             user_config: User configuration instance
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
         self._user_config = user_config
         self._state_file = get_version_check_state_file()
 
@@ -423,7 +437,10 @@ class GloveboxVersionChecker:
             return result
 
         except Exception as e:
-            self.logger.debug("Failed to check for Glovebox updates: %s", e)
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+            self.logger.debug(
+                "glovebox_version_check_failed", error=str(e), exc_info=exc_info
+            )
             return GloveboxVersionCheckResult(
                 has_update=False, current_version=None, last_check=datetime.now()
             )
@@ -444,7 +461,7 @@ class GloveboxVersionChecker:
                     # Try without dash as well
                     return distribution("glovebox").version
                 except Exception:
-                    self.logger.debug("Could not determine current Glovebox version")
+                    self.logger.debug("glovebox_version_detection_failed")
                     return None
 
     def _fetch_latest_version(
@@ -465,7 +482,11 @@ class GloveboxVersionChecker:
 
             with urllib.request.urlopen(req, timeout=10) as response:
                 if response.status != 200:
-                    self.logger.debug("GitHub API returned status %d", response.status)
+                    self.logger.debug(
+                        "github_api_error",
+                        status_code=response.status,
+                        api="glovebox_releases",
+                    )
                     return None
 
                 releases = json.loads(response.read().decode())
@@ -481,7 +502,7 @@ class GloveboxVersionChecker:
                     return VersionInfo(**release)
 
         except Exception as e:
-            self.logger.debug("Failed to fetch Glovebox releases from GitHub: %s", e)
+            self.logger.debug("glovebox_releases_fetch_failed", error=str(e))
 
         return None
 
@@ -498,11 +519,8 @@ class GloveboxVersionChecker:
             latest_clean = latest.lstrip("v")
 
             # If latest version matches the base version, no update needed
-            if base_version == latest_clean:
-                return False
-
             # Otherwise, show the update
-            return True
+            return base_version != latest_clean
 
         try:
             # Remove 'v' prefix if present
@@ -523,7 +541,7 @@ class GloveboxVersionChecker:
                     data: dict[str, Any] = json.load(f)
                     return data
         except Exception as e:
-            self.logger.debug("Failed to load version check state: %s", e)
+            self.logger.debug("version_check_state_load_failed", error=str(e))
 
         return {}
 
@@ -548,7 +566,7 @@ class GloveboxVersionChecker:
             temp_file.replace(self._state_file)
 
         except Exception as e:
-            self.logger.debug("Failed to save version check state: %s", e)
+            self.logger.debug("version_check_state_save_failed", error=str(e))
 
     def _is_check_recent(self, state: dict[str, Any]) -> bool:
         """Check if last check was within 12 hours."""

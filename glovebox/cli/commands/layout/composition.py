@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from glovebox.cli.helpers import print_error_message
+from glovebox.core.structlog_logger import get_struct_logger
 
 from .formatters import create_layout_output_formatter
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 T = TypeVar("T")
 
@@ -20,7 +21,7 @@ class LayoutCommandComposer:
 
     def __init__(self, icon_mode: str = "text") -> None:
         """Initialize layout command composer with logging and formatter."""
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = get_struct_logger(self.__class__.__name__)
         self.formatter = create_layout_output_formatter(icon_mode)
 
     def execute_with_error_handling(
@@ -43,7 +44,12 @@ class LayoutCommandComposer:
             return operation()
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.error("Failed to %s: %s", operation_name, e, exc_info=exc_info)
+            self.logger.error(
+                "layout_operation_failed",
+                operation=operation_name,
+                error=str(e),
+                exc_info=exc_info,
+            )
 
             if output_format.lower() == "json":
                 error_result = {"error": str(e), "operation": operation_name}

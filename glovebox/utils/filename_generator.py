@@ -12,9 +12,10 @@ from typing import Any
 from jinja2 import Environment
 
 from glovebox.config.models.filename_templates import FilenameTemplateConfig
+from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_struct_logger(__name__)
 
 
 class FileType(Enum):
