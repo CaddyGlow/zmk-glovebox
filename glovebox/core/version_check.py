@@ -440,8 +440,12 @@ class GloveboxVersionChecker:
 
                 return distribution("zmk-glovebox").version
             except Exception:
-                self.logger.debug("Could not determine current Glovebox version")
-                return None
+                try:
+                    # Try without dash as well
+                    return distribution("glovebox").version
+                except Exception:
+                    self.logger.debug("Could not determine current Glovebox version")
+                    return None
 
     def _fetch_latest_version(
         self, include_prereleases: bool = False

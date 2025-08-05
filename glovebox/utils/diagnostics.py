@@ -594,10 +594,25 @@ def collect_all_diagnostics(user_config: "UserConfig | None" = None) -> dict[str
 
         user_config = create_user_config()
 
-    from importlib.metadata import distribution
+    # Get version, handling various scenarios
+    version = "unknown"
+    try:
+        from glovebox._version import __version__
+
+        version = __version__
+    except ImportError:
+        try:
+            from importlib.metadata import distribution
+
+            version = distribution("zmk-glovebox").version
+        except Exception:
+            try:
+                version = distribution("glovebox").version
+            except Exception:
+                logger.debug("Could not determine Glovebox version")
 
     diagnostics: dict[str, Any] = {
-        "version": distribution("glovebox").version,
+        "version": version,
         "timestamp": None,  # Could add timestamp if needed
         "system": {},
         "docker": {},
