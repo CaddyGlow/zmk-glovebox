@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from glovebox.utils.xdg import get_xdg_config_dir
+from glovebox.utils.installation import (
+    detect_installation_method,
+    get_install_method_display_name,
+)
 
 
 if TYPE_CHECKING:
@@ -39,15 +43,22 @@ def collect_system_diagnostics() -> dict[str, Any]:
         "memory": {},
     }
 
-    # Package installation path
+    # Package installation path and method
     try:
         import glovebox
 
         package_path = Path(glovebox.__file__).parent
         diagnostics["environment"]["package_install_path"] = str(package_path)
+
+        # Detect installation method
+        install_method = detect_installation_method()
+        diagnostics["environment"]["install_method"] = get_install_method_display_name(
+            install_method
+        )
     except Exception as e:
         logger.debug("Error getting package install path: %s", e)
         diagnostics["environment"]["package_install_path"] = "unknown"
+        diagnostics["environment"]["install_method"] = "unknown"
 
     # XDG directories
     try:

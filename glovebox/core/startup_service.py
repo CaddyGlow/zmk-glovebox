@@ -55,7 +55,7 @@ class StartupService:
                 return
 
             if result.has_update and result.latest_version:
-                print("\n🔄 ZMK Firmware Update Available!")
+                print("\n[ZMK Firmware Update Available]")
                 print(f"   Current: {result.current_version or 'unknown'}")
                 print(f"   Latest:  {result.latest_version}")
                 if result.latest_url:
@@ -75,6 +75,10 @@ class StartupService:
         """Check for Glovebox application updates and notify user if available."""
         try:
             from glovebox.core.version_check import create_glovebox_version_checker
+            from glovebox.utils.installation import (
+                detect_installation_method,
+                get_update_command,
+            )
 
             version_checker = create_glovebox_version_checker(self.user_config)
             result = version_checker.check_for_updates()
@@ -83,11 +87,16 @@ class StartupService:
                 return
 
             if result.has_update and result.latest_version:
-                print("\n🔄 Glovebox Update Available!")
+                # Detect installation method and get appropriate update command
+                install_method = detect_installation_method()
+                update_command = get_update_command(install_method)
+
+                print("\n[Glovebox Update Available]")
                 print(f"   Current: {result.current_version or 'unknown'}")
                 print(f"   Latest:  {result.latest_version}")
                 if result.latest_url:
                     print(f"   Details: {result.latest_url}")
+                print(f"   Update:  {update_command}")
                 print(
                     "   To disable these checks: glovebox config set disable_version_checks true"
                 )
