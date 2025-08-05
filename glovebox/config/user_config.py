@@ -21,6 +21,7 @@ from glovebox.adapters.config_file_adapter import (
 from glovebox.config.models import UserConfigData
 from glovebox.core.errors import ConfigError
 from glovebox.core.logging import get_logger
+from glovebox.utils.xdg import get_xdg_config_dir
 
 
 logger = get_logger(__name__)
@@ -81,16 +82,10 @@ class UserConfig:
         config_paths.extend([current_dir_yaml, current_dir_yml])
 
         # 3. XDG config directory
-        xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
-        if xdg_config_home:
-            xdg_yaml = Path(xdg_config_home) / "glovebox" / "config.yaml"
-            xdg_yml = Path(xdg_config_home) / "glovebox" / "config.yml"
-            config_paths.extend([xdg_yaml, xdg_yml])
-        else:
-            # Default XDG location
-            xdg_yaml = Path.home() / ".config" / "glovebox" / "config.yaml"
-            xdg_yml = Path.home() / ".config" / "glovebox" / "config.yml"
-            config_paths.extend([xdg_yaml, xdg_yml])
+        xdg_config = get_xdg_config_dir()
+        xdg_yaml = xdg_config / "config.yaml"
+        xdg_yml = xdg_config / "config.yml"
+        config_paths.extend([xdg_yaml, xdg_yml])
 
         return config_paths
 

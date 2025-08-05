@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from glovebox.utils.xdg import get_xdg_config_dir
+
 
 if TYPE_CHECKING:
     from glovebox.config.user_config import UserConfig
@@ -49,11 +51,7 @@ def collect_system_diagnostics() -> dict[str, Any]:
 
     # XDG directories
     try:
-        xdg_env = os.getenv("XDG_CONFIG_HOME")
-        if xdg_env:
-            diagnostics["environment"]["xdg_config_home"] = str(Path(xdg_env))
-        else:
-            diagnostics["environment"]["xdg_config_home"] = str(Path.home() / ".config")
+        diagnostics["environment"]["xdg_config_home"] = str(get_xdg_config_dir().parent)
     except Exception as e:
         logger.debug("Error getting XDG config home: %s", e)
         diagnostics["environment"]["xdg_config_home"] = "error"

@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 # Import for icon mode enum
 from glovebox.cli.helpers.theme import IconMode
 from glovebox.moergo.config import MoErgoServiceConfig, create_default_moergo_config
+from glovebox.utils.xdg import get_xdg_cache_dir, get_xdg_data_dir
 
 from .cache import CacheTTLConfig
 from .filename_templates import FilenameTemplateConfig
@@ -23,10 +24,7 @@ def get_default_library_path() -> Path:
     Returns:
         Default library path: $XDG_DATA_HOME/glovebox/library or ~/.local/share/glovebox/library
     """
-    xdg_data = os.environ.get("XDG_DATA_HOME")
-    if xdg_data:
-        return Path(xdg_data) / "glovebox" / "library"
-    return Path.home() / ".local" / "share" / "glovebox" / "library"
+    return get_xdg_data_dir() / "library"
 
 
 class UserConfigData(BaseSettings):
@@ -134,9 +132,7 @@ class UserConfigData(BaseSettings):
 
     # Cache settings
     cache_path: Path = Field(
-        default_factory=lambda: Path(
-            os.path.expandvars("$XDG_CACHE_HOME/glovebox")
-        ).expanduser(),
+        default_factory=get_xdg_cache_dir,
         description="Directory for caching build artifacts and dependencies",
     )
     cache_strategy: str = Field(
@@ -241,7 +237,7 @@ class UserConfigData(BaseSettings):
             return Path(os.path.expandvars(v)).expanduser()
 
         # Fallback to default
-        return Path(os.path.expandvars("$XDG_CACHE_HOME/glovebox")).expanduser()
+        return get_xdg_cache_dir()
 
     @field_validator("library_path", mode="before")
     @classmethod

@@ -19,6 +19,7 @@ from glovebox.core.cache.cache_coordinator import (
 from glovebox.core.cache.cache_manager import CacheManager
 from glovebox.core.cache.diskcache_manager import DiskCacheManager
 from glovebox.core.cache.models import DiskCacheConfig
+from glovebox.utils.xdg import get_xdg_cache_dir
 
 
 def create_diskcache_manager(
@@ -114,9 +115,7 @@ def create_default_cache(
         return _create_disabled_cache()
 
     # Use XDG cache directory with shared coordination
-    cache_root = (
-        Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "glovebox"
-    )
+    cache_root = get_xdg_cache_dir()
 
     return get_shared_cache_instance(
         cache_root=cache_root,

@@ -15,6 +15,8 @@ from typing import Annotated, Any
 from pydantic import BeforeValidator, Field
 from pydantic_core import core_schema
 
+from glovebox.utils.xdg import get_xdg_cache_dir, get_xdg_config_dir, get_xdg_data_dir
+
 
 class PreservingPath(Path):
     """
@@ -59,18 +61,32 @@ class PreservingPath(Path):
         """
         Expand environment variables with intelligent fallbacks.
 
-        Handles common XDG variables and provides sensible defaults when they're missing.
+        Handles common XDG variables using the XDG helper functions.
         """
-        xdg_fallbacks = {
-            "$XDG_CACHE_HOME": "~/.cache",
-            "$XDG_CONFIG_HOME": "~/.config",
-            "$XDG_DATA_HOME": "~/.local/share",
-        }
-
-        for xdg_var, fallback in xdg_fallbacks.items():
-            if xdg_var in path_str:
-                env_value = os.environ.get(xdg_var[1:])  # Remove the $ prefix
-                path_str = path_str.replace(xdg_var, env_value or fallback)
+        # Use the XDG helper functions to get the proper directories
+        if "$XDG_CACHE_HOME/glovebox" in path_str:
+            path_str = path_str.replace(
+                "$XDG_CACHE_HOME/glovebox", str(get_xdg_cache_dir())
+            )
+        elif "$XDG_CONFIG_HOME/glovebox" in path_str:
+            path_str = path_str.replace(
+                "$XDG_CONFIG_HOME/glovebox", str(get_xdg_config_dir())
+            )
+        elif "$XDG_DATA_HOME/glovebox" in path_str:
+            path_str = path_str.replace(
+                "$XDG_DATA_HOME/glovebox", str(get_xdg_data_dir())
+            )
+        else:
+            # For non-glovebox XDG paths, use the base directories
+            if "$XDG_CACHE_HOME" in path_str:
+                base_cache = str(get_xdg_cache_dir().parent)
+                path_str = path_str.replace("$XDG_CACHE_HOME", base_cache)
+            if "$XDG_CONFIG_HOME" in path_str:
+                base_config = str(get_xdg_config_dir().parent)
+                path_str = path_str.replace("$XDG_CONFIG_HOME", base_config)
+            if "$XDG_DATA_HOME" in path_str:
+                base_data = str(get_xdg_data_dir().parent)
+                path_str = path_str.replace("$XDG_DATA_HOME", base_data)
 
         # Expand any remaining environment variables and user home
         return os.path.expandvars(str(Path(path_str).expanduser()))
