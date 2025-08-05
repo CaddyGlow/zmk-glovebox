@@ -9,6 +9,13 @@ firmwares:
       repository: "moergo-sc/zmk"
       branch: "v25.05"
 
+  v25.08-beta.1:
+    version: "v25.08-beta.1"
+    description: "Beta MoErgo firmware v25.08-beta.1"
+    build_options:
+      repository: "moergo-sc/zmk"
+      branch: "v25.08-beta.1"
+
   v25.04-beta.1:
     version: "v25.04-beta.1"
     description: "Beta MoErgo firmware v25.04-beta.1"

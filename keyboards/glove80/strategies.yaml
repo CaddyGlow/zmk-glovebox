@@ -2,6 +2,11 @@
 
 # ZMK Config Method
 compile_methods:
+  - method_type: moergo
+    image: glove80-zmk-config-docker
+    repository: "moergo-sc/zmk"
+    branch: "v25.05"
+
   - method_type: zmk_config
     image: "zmkfirmware/zmk-build-arm:stable"
     repository: "moergo-sc/zmk"
@@ -9,8 +14,3 @@ compile_methods:
     build_config:
       board: ["glove80_lh", "glove80_rh"]
       shield: []
-
-  - method_type: moergo
-    image: glove80-zmk-config-docker
-    repository: "moergo-sc/zmk"
-    branch: "v25.05"
