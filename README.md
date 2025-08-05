@@ -74,9 +74,35 @@ pip install glovebox
 
 #### Install from Source
 ```bash
-git clone https://github.com/your-org/glovebox.git
-cd glovebox
+git clone https://github.com/CaddyGlow/zmk-glovebox.git
+cd zmk-glovebox
+
+# Using uv (recommended)
+uv pip install -e .
+
+# Or using pip
 pip install -e .
+```
+
+#### Install with Nix
+If you use [Nix](https://nixos.org/), you can run Glovebox directly without installation:
+```bash
+# Run directly from the repository
+nix run github:CaddyGlow/zmk-glovebox -- --help
+
+# Run from a local clone
+cd zmk-glovebox
+nix run . -- --help
+```
+
+Or install it to your profile:
+```bash
+# Install from GitHub
+nix profile install github:CaddyGlow/zmk-glovebox#venv
+
+# Install from local clone
+cd zmk-glovebox
+nix profile install .#venv
 ```
 
 ### Basic Usage
