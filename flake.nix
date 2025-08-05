@@ -44,7 +44,7 @@
           # Override to add git for version detection
           projectOverrides = final: prev: {
             zmk-glovebox = prev.zmk-glovebox.overrideAttrs (old: {
-              nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ pkgs.git ];
+              nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ pkgs.git pkgs.cacert ];
               # Set version from git tag or fallback
               preBuild = ''
                 export SETUPTOOLS_SCM_PRETEND_VERSION="0.1.1"
