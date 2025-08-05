@@ -156,7 +156,7 @@ Common workflows:
   • Build firmware:   glovebox firmware compile keymap.keymap config.conf --profile glove80/v25.05
   • Flash devices:    glovebox firmware flash firmware.uf2 --profile glove80/v25.05
   • Show status:      glovebox status""",
-    no_args_is_help=True,
+    no_args_is_help=False,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
