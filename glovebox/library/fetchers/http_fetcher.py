@@ -76,8 +76,11 @@ class HTTPFetcher:
         try:
             logger.info("Downloading layout from %s", source)
 
-            # Download content
-            with httpx.Client(timeout=self.timeout) as client:
+            # Download content with browser user agent to avoid Cloudflare blocking
+            headers = {
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            with httpx.Client(timeout=self.timeout, headers=headers) as client:
                 response = client.get(source)
                 response.raise_for_status()
 
