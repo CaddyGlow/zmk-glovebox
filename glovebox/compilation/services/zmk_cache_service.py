@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from glovebox.core.structlog_logger import get_struct_logger
+
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )
@@ -37,7 +39,7 @@ class ZmkCacheService:
         self.user_config = user_config
         self.cache_manager = cache_manager
         self.session_metrics = session_metrics
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_struct_logger(__name__)
 
         # Create cache services if not provided
         if workspace_cache_service is None:
@@ -269,7 +271,7 @@ class ZmkCacheService:
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.warning("Failed to cache workspace: %s", e, exc_info=exc_info)
+            self.logger.warning("failed_to_cache_workspace", error=str(e), exc_info=exc_info)
             # TODO: Enable after refactoring
             # if progress_coordinator:
             #     progress_coordinator.update_cache_saving(
@@ -387,7 +389,7 @@ class ZmkCacheService:
             )
 
             if success:
-                self.logger.info("Cached build result for %s", keymap_file.name)
+                self.logger.info("cached_build_result", keymap_file=keymap_file.name)
                 # TODO: Enable after refactoring
                 # if progress_coordinator:
                 #     progress_coordinator.update_cache_saving(

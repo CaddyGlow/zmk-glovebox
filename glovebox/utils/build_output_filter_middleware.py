@@ -92,6 +92,7 @@ class BuildOutputFilterMiddleware(OutputMiddleware[str]):
             re.compile(r".*error:.*"),
             re.compile(r".*Error:.*"),
             re.compile(r".*ERROR:.*"),
+            re.compile(r".*WARNING:.*"),
             re.compile(r".*failed.*"),
             re.compile(r".*Failed.*"),
             re.compile(r".*FAILED.*"),

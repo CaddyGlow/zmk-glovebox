@@ -649,12 +649,12 @@ def with_tmpdir(
                         import shutil
 
                         shutil.rmtree(tmp_dir)
-                        logger.debug("Cleaned up temporary directory: %s", tmp_dir)
+                        logger.debug("cleaned_up_temporary_directory", directory=str(tmp_dir))
                     except Exception as cleanup_error:
                         logger.warning(
-                            "Failed to clean up temporary directory %s: %s",
-                            tmp_dir,
-                            cleanup_error,
+                            "failed_to_clean_up_temporary_directory",
+                            directory=str(tmp_dir),
+                            error=str(cleanup_error),
                         )
 
         return wrapper

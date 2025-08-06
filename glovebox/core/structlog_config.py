@@ -1,5 +1,3 @@
-"""Structlog configuration and setup for Glovebox."""
-
 import logging
 import sys
 from typing import TYPE_CHECKING, Any
@@ -21,7 +19,7 @@ except ImportError:
 
 
 class StructlogColorRenderer:
-    """Custom colored console renderer for structlog that integrates with colorlog."""
+    """Custom colored console renderer for structlog that matches ccproxy style."""
 
     def __init__(self) -> None:
         """Initialize the colored renderer."""
@@ -39,36 +37,65 @@ class StructlogColorRenderer:
     def __call__(
         self, logger: Any, method_name: str, event_dict: dict[str, Any]
     ) -> str:
-        """Render log event with colors."""
+        """Render log event with colors in ccproxy style."""
         level = event_dict.get("level", "info").lower()
         timestamp = event_dict.get("timestamp", "")
         logger_name = event_dict.get("logger", "")
         event = event_dict.get("event", "")
 
         # Extract structured fields (everything except standard fields)
-        standard_fields = {"level", "timestamp", "logger", "event", "exc_info"}
+        standard_fields = {"level", "timestamp", "logger", "event", "exc_info", "filename", "lineno"}
         extra_fields = {k: v for k, v in event_dict.items() if k not in standard_fields}
 
-        # Build the message
-        msg_parts = [f"{timestamp} - {logger_name} - {level.upper()} - {event}"]
+        # Format based on log level
+        if level == "debug":
+            # DEBUG format: 14:22:08 [debug    ] message [logger.name] filename=serve.py lineno=627
+            time_part = timestamp[11:19] if len(timestamp) >= 19 else timestamp  # Extract HH:MM:SS
+            level_colored = f"[{level:<8}]"
+            if HAS_COLORLOG and level in self.color_map:
+                color_code = self._get_color_code(self.color_map[level])
+                level_colored = f"[\033[{color_code}m{level:<8}\033[0m]"
+            
+            # Add filename and lineno to extra_fields if available from callsite
+            filename = event_dict.get("filename", "")
+            lineno = event_dict.get("lineno", "")
+            if filename:
+                extra_fields["filename"] = filename
+            if lineno:
+                extra_fields["lineno"] = lineno
+            
+            # Build message parts
+            parts = [f"{time_part} {level_colored} {event}"]
+            
+            # Add structured fields
+            if extra_fields:
+                fields_str = " ".join(f"{k}={v}" for k, v in extra_fields.items())
+                parts.append(f" {fields_str}")
+            
+            # Add logger name in brackets at the end for debug
+            parts.append(f" [{logger_name}]")
+            
+        else:
+            # INFO+ format: 2025-08-05 14:20:34 [info     ] message [logger.name] field=value
+            # Use full timestamp for INFO and above
+            date_time = timestamp[:19] if len(timestamp) >= 19 else timestamp  # Extract YYYY-MM-DD HH:MM:SS
+            level_colored = f"[{level:<8}]"
+            if HAS_COLORLOG and level in self.color_map:
+                color_code = self._get_color_code(self.color_map[level])
+                level_colored = f"[\033[{color_code}m{level:<8}\033[0m]"
+            
+            # Build message parts
+            parts = [f"{date_time} {level_colored} {event:<30}"]
+            
+            # Add logger name in brackets
+            parts.append(f" [{logger_name}]")
+            
+            # Add structured fields
+            if extra_fields:
+                fields_str = " ".join(f"{k}={v}" for k, v in extra_fields.items())
+                parts.append(f" {fields_str}")
 
-        # Add structured fields
-        if extra_fields:
-            fields_str = " ".join(f"{k}={v}" for k, v in extra_fields.items())
-            msg_parts.append(f" [{fields_str}]")
-
-        message = "".join(msg_parts)
-
-        # Add color if available
-        if HAS_COLORLOG and level in self.color_map:
-            color = self.color_map[level]
-            # Simple color application - just color the level
-            message = message.replace(
-                level.upper(),
-                f"\033[{self._get_color_code(color)}m{level.upper()}\033[0m",
-            )
-
-        return message
+        return "".join(parts)
 
     def _get_color_code(self, color: str) -> str:
         """Get ANSI color code for colorlog color name."""
@@ -102,7 +129,14 @@ def configure_structlog(
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
+        # Add callsite info for debug logging (filename, lineno)
+        structlog.processors.CallsiteParameterAdder(
+            parameters=[
+                structlog.processors.CallsiteParameter.FILENAME,
+                structlog.processors.CallsiteParameter.LINENO,
+            ]
+        ),
+        # structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
     ]
 
@@ -119,7 +153,9 @@ def configure_structlog(
             structlog.dev.ConsoleRenderer(colors=colored and HAS_COLORLOG)
         )
 
-    # Configure structlog
+    # Don't add ProcessorFormatter wrapper - let structlog handle its own output
+
+    # Configure structlog with standard logging integration
     structlog.configure(
         processors=processors,
         context_class=dict,

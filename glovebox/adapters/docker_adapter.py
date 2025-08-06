@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from glovebox.protocols.progress_context_protocol import ProgressContextProtocol
 
 logger = get_struct_logger(__name__)
-logger_rich = logging.getLogger("rich")
 
 
 class LoggerOutputMiddleware(OutputMiddleware[str]):
@@ -63,10 +62,8 @@ class LoggerOutputMiddleware(OutputMiddleware[str]):
             return line
 
         if stream_type == "stdout":
-            logger_rich.info(f"{self.stdout_prefix}{line}")
             logger.debug(f"{self.stdout_prefix}{line}")
         else:
-            logger_rich.info(f"{self.stderr_prefix}{line}")
             logger.info(f"{self.stderr_prefix}{line}")
         return line
 

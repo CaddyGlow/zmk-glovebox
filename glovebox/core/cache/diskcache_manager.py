@@ -14,9 +14,6 @@ from glovebox.core.cache.models import CacheMetadata, CacheStats, DiskCacheConfi
 from glovebox.core.structlog_logger import get_struct_logger
 
 
-logger = get_struct_logger(__name__)
-
-
 class DiskCacheManager(CacheManager):
     """Cache manager implementation using DiskCache library.
 

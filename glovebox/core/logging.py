@@ -184,11 +184,19 @@ def _create_formatter(format_type: str, colored: bool = False) -> logging.Format
     Returns:
         Appropriate formatter instance
     """
-    # Format templates
-    formats = {
-        "simple": "%(levelname)s: %(message)s",
-        "detailed": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    }
+    # Format templates - simplified when structlog is active
+    if HAS_STRUCTLOG:
+        # When structlog is active, let it handle all formatting
+        formats = {
+            "simple": "%(message)s",
+            "detailed": "%(message)s",
+        }
+    else:
+        # Standard formats when structlog is not available
+        formats = {
+            "simple": "%(levelname)s: %(message)s", 
+            "detailed": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        }
 
     if format_type == "json":
         return JSONFormatter()
@@ -288,6 +296,15 @@ def setup_logging_from_config(config: "LoggingConfig") -> logging.Logger:
     Returns:
         The configured root logger
     """
+    # Initialize structlog FIRST so ProcessorFormatter is available
+    if HAS_STRUCTLOG:
+        try:
+            setup_structlog_from_config(config)
+        except Exception as e:
+            # Log error but don't fail - structlog is optional
+            logger = logging.getLogger("glovebox.core.logging")
+            logger.warning("Failed to setup structlog: %s", e)
+
     # Get the root logger for the glovebox package
     root_logger = logging.getLogger("glovebox")
 
@@ -308,19 +325,11 @@ def setup_logging_from_config(config: "LoggingConfig") -> logging.Logger:
     for handler_config in config.handlers:
         handler = _create_handler(handler_config)
         if handler:
+            # Keep standard formatter - structlog will handle its own formatting
             root_logger.addHandler(handler)
 
-    # Prevent propagation to the absolute root logger
+    # Prevent propagation to avoid duplicate logging
     root_logger.propagate = False
-
-    # Initialize structlog with the same configuration
-    if HAS_STRUCTLOG:
-        try:
-            setup_structlog_from_config(config)
-        except Exception as e:
-            # Log error but don't fail - structlog is optional
-            logger = logging.getLogger("glovebox.core.logging")
-            logger.warning("Failed to setup structlog: %s", e)
 
     return root_logger
 
@@ -340,39 +349,7 @@ def setup_logging(
     Returns:
         The configured root logger
     """
-    # Get the root logger for the glovebox package
-    root_logger = logging.getLogger("glovebox")
-    root_logger.setLevel(level)
-
-    # Clear any existing handlers to avoid duplicate logs if called multiple times
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
-
-    # Create formatter
-    formatter = logging.Formatter(log_format)
-
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
-
-    # File handler if requested
-    if log_file:
-        try:
-            file_handler = logging.FileHandler(log_file)
-            file_handler.setFormatter(formatter)
-            root_logger.addHandler(file_handler)
-        except OSError as e:
-            # Log error about file handler creation to console, but don't crash
-            console_logger = logging.getLogger("glovebox.core.logging")
-            console_logger.error(
-                "Failed to create log file handler for %s: %s", log_file, e
-            )
-
-    # Prevent propagation to the absolute root logger
-    root_logger.propagate = False
-
-    # Initialize structlog with simple configuration
+    # Initialize structlog FIRST so ProcessorFormatter is available
     if HAS_STRUCTLOG:
         try:
             # Determine format based on log_format parameter
@@ -391,5 +368,40 @@ def setup_logging(
             # Log error but don't fail - structlog is optional
             console_logger = logging.getLogger("glovebox.core.logging")
             console_logger.warning("Failed to setup structlog: %s", e)
+
+    # Get the root logger for the glovebox package
+    root_logger = logging.getLogger("glovebox")
+    root_logger.setLevel(level)
+
+    # Clear any existing handlers to avoid duplicate logs if called multiple times
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    
+    # Use standard formatter - structlog handles its own formatting
+    console_handler.setFormatter(logging.Formatter(log_format))
+    
+    root_logger.addHandler(console_handler)
+
+    # File handler if requested
+    if log_file:
+        try:
+            file_handler = logging.FileHandler(log_file)
+            
+            # Use standard formatter - structlog handles its own formatting
+            file_handler.setFormatter(logging.Formatter(log_format))
+                
+            root_logger.addHandler(file_handler)
+        except OSError as e:
+            # Log error about file handler creation to console, but don't crash
+            console_logger = logging.getLogger("glovebox.core.logging")
+            console_logger.error(
+                "Failed to create log file handler for %s: %s", log_file, e
+            )
+
+    # Prevent propagation to avoid duplicate logging
+    root_logger.propagate = False
 
     return root_logger

@@ -112,7 +112,7 @@ def format_workspace_entry(
     return {
         "cache_key": cache_key,
         "repository": workspace_metadata.repository,
-        "branch": workspace_metadata.branch,
+        "branch": workspace_metadata.branch or "N/A",
         "cache_level": cache_level_value,
         "age": age_str,
         "ttl_remaining": ttl_str,
@@ -152,7 +152,7 @@ def filter_workspaces(
         filtered_entries = [
             entry
             for entry in filtered_entries
-            if filter_branch.lower() in entry["branch"].lower()
+            if entry["branch"] and filter_branch.lower() in entry["branch"].lower()
         ]
 
     if filter_level:

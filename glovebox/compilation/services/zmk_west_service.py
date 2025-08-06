@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import structlog
+
 
 if TYPE_CHECKING:
     from glovebox.layout.models import LayoutData
@@ -103,7 +105,7 @@ class ZmkWestService(CompilationServiceProtocol):
         self.file_adapter = file_adapter
         self.cache_manager = cache_manager
         self.session_metrics = session_metrics
-        self.logger = logging.getLogger(__name__)
+        self.logger = structlog.get_logger(__name__)
         self.copy_service = copy_service or create_copy_service(
             use_pipeline=True, max_workers=3
         )
@@ -811,6 +813,16 @@ class ZmkWestService(CompilationServiceProtocol):
 
             chained = create_chained_middleware(middlewares)
             try:
+                self.logger.debug(
+                    "zmk_docker_run",
+                    image=config.image,
+                    volumes=[(str(workspace_path), "/workspace")],
+                    environment={},  # {"JOBS": "4"},
+                    progress_context=effective_progress_context,
+                    command=["sh", "-c", "set -xeu; " + " && ".join(all_commands)],
+                    middleware=chained,
+                    user_context=user_context,
+                )
                 result: tuple[int, list[str], list[str]] = (
                     self.docker_adapter.run_container(
                         image=config.image,
