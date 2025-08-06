@@ -2255,6 +2255,7 @@ dependencies = [
     { name = "typer" },
     { name = "types-psutil" },
     { name = "wmi", marker = "sys_platform == 'win32'" },
+    { name = "zmk-layout" },
 ]
 
 [package.dev-dependencies]
@@ -2303,6 +2304,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.16.0" },
     { name = "types-psutil", specifier = ">=7.0.0.20250601" },
     { name = "wmi", marker = "sys_platform == 'win32'" },
+    { name = "zmk-layout", directory = "../zmk-layout-lib" },
 ]
 
 [package.metadata.requires-dev]
@@ -2326,4 +2328,45 @@ dev = [
     { name = "tox", specifier = ">=4.26.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12.12" },
     { name = "types-requests", specifier = ">=2.32.4.20250611" },
+]
+
+[[package]]
+name = "zmk-layout"
+source = { directory = "../zmk-layout-lib" }
+dependencies = [
+    { name = "lark" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jinja2", marker = "extra == 'full'", specifier = ">=3.0" },
+    { name = "jinja2", marker = "extra == 'templating'", specifier = ">=3.0" },
+    { name = "jsonpatch", marker = "extra == 'full'", specifier = ">=1.32" },
+    { name = "lark", specifier = ">=1.2.2" },
+    { name = "lark", marker = "extra == 'full'", specifier = ">=1.1" },
+    { name = "lark", marker = "extra == 'parsing'", specifier = ">=1.1" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.15" },
+    { name = "pydantic", specifier = ">=2.11.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "rich", marker = "extra == 'display'", specifier = ">=13.0" },
+    { name = "rich", marker = "extra == 'full'", specifier = ">=13.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11" },
+    { name = "typing-extensions", specifier = ">=4.0.0" },
+]
+provides-extras = ["dev", "display", "full", "parsing", "templating"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.17.1" },
+    { name = "psutil", specifier = ">=7.0.0" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-coverage", specifier = ">=0.0" },
+    { name = "pytest-profiling", specifier = ">=1.8.1" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "ruff", specifier = ">=0.12.7" },
+    { name = "types-psutil", specifier = ">=7.0.0.20250801" },
 ]

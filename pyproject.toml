@@ -26,6 +26,7 @@ dependencies = [
   "httpx>=0.28.1",
   "cryptography>=42.0.0",
   "structlog>=25.4.0",
+  "zmk-layout",
 ]
 
 [project.scripts]
@@ -211,3 +212,6 @@ legacy_tox_ini = """
       pytest-timeout
   commands = pytest {posargs}
   """
+
+[tool.uv.sources]
+zmk-layout = { path = "../zmk-layout-lib" }

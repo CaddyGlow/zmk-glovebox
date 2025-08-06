@@ -43,7 +43,7 @@ class ASTBehaviorConverter(StructlogMixin):
         """
         if token in self.defines:
             resolved = self.defines[token]
-            self.logger.debug("Resolved define %s -> %s", token, resolved)
+            self.logger.debug("resolved_define", token=token, resolved=resolved)
             return resolved
         return token
 
