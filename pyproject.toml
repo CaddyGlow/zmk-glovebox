@@ -213,5 +213,5 @@ legacy_tox_ini = """
   commands = pytest {posargs}
   """
 
-# [tool.uv.sources]
-# zmk-layout = { git = "https://github.com/caddyglow/zmk-layout.git" }
+[tool.uv.sources]
+zmk-layout = { path = "../zmk-layout-lib", editable = true }

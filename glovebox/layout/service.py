@@ -427,19 +427,10 @@ def create_enhanced_layout_service(
         try:
             from glovebox.layout.zmk_layout_service import create_zmk_layout_service
 
-            # Create services dict for zmk-layout integration
-            services = {
-                "keyboard_profile": None,  # Will use real services
-                "template": template_adapter,
-                "logging": None,  # Will use real services
-                "settings": None,  # Will use real services
-            }
-
-            # Store zmk-layout service as additional capability
-            setattr(service, '_zmk_layout_service', create_zmk_layout_service(
-                keyboard_id=keyboard_id,
-                services=services,
-            ))
+            # Don't pass services dict - let the provider factory create real services
+            service._zmk_layout_service = create_zmk_layout_service(
+                keyboard_id=keyboard_id
+            )
 
             service.logger.info(
                 "enhanced_layout_service_created",

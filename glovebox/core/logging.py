@@ -1,34 +1,17 @@
 """Logging configuration and setup for Glovebox."""
 
-import json
 import logging
-import logging.handlers
 import queue
 import sys
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
+import structlog
+from structlog.stdlib import BoundLogger
+from structlog.typing import Processor
 
-if TYPE_CHECKING:
-    from glovebox.config.models.logging import LoggingConfig, LogHandlerConfig
-
-try:
-    import colorlog
-
-    HAS_COLORLOG = True
-except ImportError:
-    HAS_COLORLOG = False
-
-# Import structlog setup functions
-try:
-    from glovebox.core.structlog_config import (
-        setup_structlog_from_config,
-        setup_structlog_simple,
-    )
-
-    HAS_STRUCTLOG = True
-except ImportError:
-    HAS_STRUCTLOG = False
+from glovebox.config.models.logging import LoggingConfig
 
 
 class TUIProgressProtocol(Protocol):
@@ -134,274 +117,189 @@ class TUILogHandler(logging.Handler):
         super().close()
 
 
-class JSONFormatter(logging.Formatter):
-    """Custom JSON formatter using built-in json module."""
+def configure_structlog(log_level: int = logging.INFO) -> None:
+    """Configure structlog with shared processors following canonical pattern."""
+    # Shared processors for all structlog loggers
+    processors: list[Processor] = [
+        structlog.contextvars.merge_contextvars,  # For request context in web apps
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+    ]
 
-    def format(self, record: logging.LogRecord) -> str:
-        """Format log record as JSON."""
-        log_entry = {
-            "timestamp": self.formatTime(record),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-        }
-
-        # Add exception info if present
-        if record.exc_info and record.exc_info != (None, None, None):
-            log_entry["exception"] = self.formatException(record.exc_info)
-
-        # Add extra fields if present
-        if hasattr(record, "extra"):
-            log_entry.update(record.extra)
-
-        return json.dumps(log_entry)
-
-
-def get_logger(name: str) -> logging.Logger:
-    """Get a logger with the given name.
-
-    Args:
-        name: The logger name, usually __name__
-
-    Returns:
-        A logger instance
-
-    Note: For exception logging with debug stack traces, use this pattern:
-        except Exception as e:
-            exc_info = logger.isEnabledFor(logging.DEBUG)
-            logger.error("Operation failed: %s", e, exc_info=exc_info)
-    """
-    return logging.getLogger(name)
-
-
-def _create_formatter(format_type: str, colored: bool = False) -> logging.Formatter:
-    """Create a formatter based on format type and color preference.
-
-    Args:
-        format_type: Format type (simple, detailed, json)
-        colored: Whether to use colored output (ignored for json format)
-
-    Returns:
-        Appropriate formatter instance
-    """
-    # Format templates - simplified when structlog is active
-    if HAS_STRUCTLOG:
-        # When structlog is active, let it handle all formatting
-        formats = {
-            "simple": "%(message)s",
-            "detailed": "%(message)s",
-        }
-    else:
-        # Standard formats when structlog is not available
-        formats = {
-            "simple": "%(levelname)s: %(message)s",
-            "detailed": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        }
-
-    if format_type == "json":
-        return JSONFormatter()
-
-    format_string = formats.get(format_type, formats["simple"])
-
-    # Use colored formatter if requested and available
-    if colored and HAS_COLORLOG and format_type != "json":
-        # Colorlog format with colors
-        color_format = format_string.replace(
-            "%(levelname)s", "%(log_color)s%(levelname)s%(reset)s"
-        )
-        return colorlog.ColoredFormatter(
-            color_format,
-            log_colors={
-                "DEBUG": "cyan",
-                "INFO": "green",
-                "WARNING": "yellow",
-                "ERROR": "red",
-                "CRITICAL": "red,bg_white",
-            },
-        )
-
-    return logging.Formatter(format_string)
-
-
-def _create_handler(handler_config: "LogHandlerConfig") -> logging.Handler | None:
-    """Create a logging handler from configuration.
-
-    Args:
-        handler_config: Handler configuration
-
-    Returns:
-        Configured handler or None if creation failed
-    """
-    from glovebox.config.models.logging import LogHandlerType
-
-    handler: logging.Handler | None = None
-
-    try:
-        if handler_config.type == LogHandlerType.CONSOLE:
-            handler = logging.StreamHandler(sys.stdout)
-        elif handler_config.type == LogHandlerType.STDERR:
-            handler = logging.StreamHandler(sys.stderr)
-        elif handler_config.type == LogHandlerType.FILE:
-            if not handler_config.file_path:
-                logging.getLogger("glovebox.core.logging").error(
-                    "File path required for file handler"
-                )
-                return None
-
-            # Ensure parent directory exists
-            handler_config.file_path.parent.mkdir(parents=True, exist_ok=True)
-            handler = logging.FileHandler(handler_config.file_path)
-        elif handler_config.type == LogHandlerType.TUI:
-            # Create TUI handler without progress manager (set later)
-            handler = TUILogHandler()
-
-        if handler:
-            # Set level
-            handler.setLevel(handler_config.get_log_level_int())
-
-            # Create and set formatter
-            # Don't use colored output for file handlers
-            use_colors = (
-                handler_config.colored and handler_config.type != LogHandlerType.FILE
+    # Add debug-specific processors
+    if log_level < logging.INFO:
+        # Dev mode (DEBUG): add callsite information
+        processors.append(
+            structlog.processors.CallsiteParameterAdder(
+                parameters=[
+                    structlog.processors.CallsiteParameter.FILENAME,
+                    structlog.processors.CallsiteParameter.LINENO,
+                ]
             )
-            # Handle both enum and string format values
-            format_value = (
-                handler_config.format.value
-                if hasattr(handler_config.format, "value")
-                else handler_config.format
-            )
-            formatter = _create_formatter(format_value, use_colors)
-            handler.setFormatter(formatter)
-
-        return handler
-
-    except Exception as e:
-        logger = logging.getLogger("glovebox.core.logging")
-        # Handle both enum and string type values
-        type_value = (
-            handler_config.type.value
-            if hasattr(handler_config.type, "value")
-            else handler_config.type
         )
-        logger.error("Failed to create %s handler: %s", type_value, e)
-        return None
+
+    # Common processors for all log levels
+    processors.extend(
+        [
+            # Use human-readable timestamp for structlog logs in debug mode, normal otherwise
+            structlog.processors.TimeStamper(
+                fmt="%H:%M:%S" if log_level < logging.INFO else "%Y-%m-%d %H:%M:%S"
+            ),
+            structlog.processors.StackInfoRenderer(),
+            structlog.dev.set_exc_info,  # Handle exceptions properly
+            # This MUST be the last processor - allows different renderers per handler
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ]
+    )
+
+    structlog.configure(
+        processors=processors,
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,  # Cache for performance
+    )
 
 
-def setup_logging_from_config(config: "LoggingConfig") -> logging.Logger:
-    """Set up logging from LoggingConfig object.
-
-    Args:
-        config: Logging configuration
-
-    Returns:
-        The configured root logger
-    """
-    # Initialize structlog FIRST so ProcessorFormatter is available
-    if HAS_STRUCTLOG:
-        try:
-            setup_structlog_from_config(config)
-        except Exception as e:
-            # Log error but don't fail - structlog is optional
-            logger = logging.getLogger("glovebox.core.logging")
-            logger.warning("Failed to setup structlog: %s", e)
-
-    # Get the root logger for the glovebox package
-    root_logger = logging.getLogger("glovebox")
-
-    # Clear any existing handlers to avoid duplicate logs
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
-
-    # Find the most restrictive log level across all handlers
-    min_level = logging.CRITICAL
-    for handler_config in config.handlers:
-        handler_level = handler_config.get_log_level_int()
-        if handler_level < min_level:
-            min_level = handler_level
-
-    root_logger.setLevel(min_level)
-
-    # Create and add handlers
-    for handler_config in config.handlers:
-        handler = _create_handler(handler_config)
-        if handler:
-            # Keep standard formatter - structlog will handle its own formatting
-            root_logger.addHandler(handler)
-
-    # Prevent propagation to avoid duplicate logging
-    root_logger.propagate = False
-
-    return root_logger
+def setup_logging_from_config(config: "LoggingConfig") -> BoundLogger:
+    return setup_logging()  # json_logs=False, log_level_name="DEBUG", log_file=None)
 
 
 def setup_logging(
-    level: int | str = logging.INFO,
-    log_file: str | None = None,
-    log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-) -> logging.Logger:
-    """Set up logging configuration for Glovebox (backward compatibility).
-
-    Args:
-        level: Logging level (default: INFO)
-        log_file: Optional file to write logs to
-        log_format: Format string for log messages
-
-    Returns:
-        The configured root logger
+    json_logs: bool = False, log_level: int = logging.DEBUG, log_file: str | None = None
+) -> BoundLogger:
     """
-    # Initialize structlog FIRST so ProcessorFormatter is available
-    if HAS_STRUCTLOG:
-        try:
-            # Determine format based on log_format parameter
-            format_type = "console"  # Default
-            if "json" in log_format.lower():
-                format_type = "json"
-            elif "simple" in log_format.lower():
-                format_type = "simple"
+    Setup logging for the entire application using canonical structlog pattern.
+    Returns a structlog logger instance.
+    """
+    # log_level = getattr(logging, log_level_name.upper(), logging.INFO)
 
-            setup_structlog_simple(
-                level=level,
-                log_format=format_type,
-                colored=True,  # Default to colored for console output
+    # Get root logger and set level BEFORE configuring structlog
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+
+    # 1. Configure structlog with shared processors
+    configure_structlog(log_level=log_level)
+
+    # 2. Setup root logger handlers
+    root_logger.handlers = []  # Clear any existing handlers
+
+    # 3. Create shared processors for foreign (stdlib) logs
+    shared_processors = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.dev.set_exc_info,
+    ]
+
+    # Add debug processors if needed
+    if log_level < logging.INFO:
+        shared_processors.append(
+            structlog.processors.CallsiteParameterAdder(  # type: ignore[arg-type]
+                parameters=[
+                    structlog.processors.CallsiteParameter.FILENAME,
+                    structlog.processors.CallsiteParameter.LINENO,
+                ]
             )
-        except Exception as e:
-            # Log error but don't fail - structlog is optional
-            console_logger = logging.getLogger("glovebox.core.logging")
-            console_logger.warning("Failed to setup structlog: %s", e)
+        )
 
-    # Get the root logger for the glovebox package
-    root_logger = logging.getLogger("glovebox")
-    root_logger.setLevel(level)
+    # Add appropriate timestamper for console vs file
+    console_timestamper = (
+        structlog.processors.TimeStamper(fmt="%H:%M:%S")
+        if log_level < logging.INFO
+        else structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
+    )
 
-    # Clear any existing handlers to avoid duplicate logs if called multiple times
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
+    file_timestamper = structlog.processors.TimeStamper(fmt="iso")
 
-    # Console handler
+    # 4. Setup console handler with ConsoleRenderer
     console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_renderer = (
+        structlog.processors.JSONRenderer()
+        if json_logs
+        else structlog.dev.ConsoleRenderer()
+    )
 
-    # Use standard formatter - structlog handles its own formatting
-    console_handler.setFormatter(logging.Formatter(log_format))
-
+    # Console gets human-readable timestamps for both structlog and stdlib logs
+    console_processors = shared_processors + [console_timestamper]
+    console_handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=console_processors,
+            processor=console_renderer,
+        )
+    )
     root_logger.addHandler(console_handler)
 
-    # File handler if requested
+    # 5. Setup file handler with JSONRenderer (if log_file provided)
     if log_file:
-        try:
-            file_handler = logging.FileHandler(log_file)
+        # Ensure parent directory exists
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Use standard formatter - structlog handles its own formatting
-            file_handler.setFormatter(logging.Formatter(log_format))
+        file_handler = logging.FileHandler(log_file, encoding="utf-8", delay=True)
+        file_handler.setLevel(log_level)
 
-            root_logger.addHandler(file_handler)
-        except OSError as e:
-            # Log error about file handler creation to console, but don't crash
-            console_logger = logging.getLogger("glovebox.core.logging")
-            console_logger.error(
-                "Failed to create log file handler for %s: %s", log_file, e
+        # File gets ISO timestamps for both structlog and stdlib logs
+        file_processors = shared_processors + [file_timestamper]
+        file_handler.setFormatter(
+            structlog.stdlib.ProcessorFormatter(
+                foreign_pre_chain=file_processors,
+                processor=structlog.processors.JSONRenderer(),
             )
+        )
+        root_logger.addHandler(file_handler)
 
-    # Prevent propagation to avoid duplicate logging
-    root_logger.propagate = False
+    # 6. Configure stdlib loggers to propagate to our handlers
+    for logger_name in [
+        "uvicorn",
+        "uvicorn.access",
+        "uvicorn.error",
+        "fastapi",
+        "ccproxy",
+    ]:
+        logger = logging.getLogger(logger_name)
+        logger.handlers = []  # Remove default handlers
+        logger.propagate = True  # Use root logger's handlers
 
-    return root_logger
+        # In DEBUG mode, let all logs through at DEBUG level
+        # Otherwise, reduce uvicorn noise by setting to WARNING
+        if log_level == logging.DEBUG:
+            logger.setLevel(logging.DEBUG)
+        elif logger_name.startswith("uvicorn"):
+            logger.setLevel(logging.WARNING)
+        else:
+            logger.setLevel(log_level)
+
+    # Configure httpx logger separately - INFO when app is DEBUG, WARNING otherwise
+    httpx_logger = logging.getLogger("httpx")
+    httpx_logger.handlers = []
+    httpx_logger.propagate = True
+    httpx_logger.setLevel(logging.INFO if log_level < logging.INFO else logging.WARNING)
+
+    # Set noisy HTTP-related loggers to WARNING
+    noisy_log_level = logging.WARNING if log_level <= logging.WARNING else log_level
+    for noisy_logger_name in [
+        "urllib3",
+        "urllib3.connectionpool",
+        "requests",
+        "aiohttp",
+        "httpcore",
+        "httpcore.http11",
+        "fastapi_mcp",
+        "sse_starlette",
+        "mcp",
+    ]:
+        noisy_logger = logging.getLogger(noisy_logger_name)
+        noisy_logger.handlers = []
+        noisy_logger.propagate = True
+        noisy_logger.setLevel(noisy_log_level)
+
+    return structlog.get_logger()  # type: ignore[no-any-return]
+
+
+# Create a convenience function for getting loggers
+def get_logger(name: str | None = None) -> BoundLogger:
+    """Get a structlog logger instance."""
+    return structlog.get_logger(name)  # type: ignore[no-any-return]

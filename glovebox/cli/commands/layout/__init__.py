@@ -11,7 +11,13 @@ def register_commands(app: typer.Typer) -> None:
     """
     # Import commands only when this function is called
     from .comparison import diff, patch
-    from .core import compile_layout, show, validate
+    from .core import (
+        compile_layout,
+        show,
+        validate,
+        zmk_layout_compile,
+        zmk_layout_info,
+    )
     from .edit import edit
     from .file_operations import merge, split
     from .parsing import register_parsing_commands
@@ -24,12 +30,16 @@ def register_commands(app: typer.Typer) -> None:
 Transform JSON layouts to ZMK files, edit layouts with batch operations,
 manage file operations, handle version upgrades, and compare layouts.
 
-**NEW COMMAND STRUCTURE** (6 main commands instead of 19+):
+**NEW COMMAND STRUCTURE** (8 main commands instead of 19+):
 
 Core Operations:
   compile     - Convert JSON layout to ZMK files
   validate    - Validate layout syntax and structure
   show        - Display layout in terminal
+
+ZMK-Layout Integration:
+  zmk-compile - Enhanced compilation using zmk-layout library
+  zmk-info    - Show zmk-layout integration status and capabilities
 
 Unified Editing:
   edit        - Get/set fields, add/remove/move layers, list variable usage (batch operations)
@@ -54,6 +64,10 @@ Comparison:
     layout_app.command(name="compile")(compile_layout)
     layout_app.command()(validate)
     layout_app.command()(show)
+
+    # Register zmk-layout integration commands
+    layout_app.command(name="zmk-compile")(zmk_layout_compile)
+    layout_app.command(name="zmk-info")(zmk_layout_info)
 
     # Register unified edit command
     layout_app.command()(edit)

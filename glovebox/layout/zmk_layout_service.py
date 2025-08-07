@@ -8,32 +8,13 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from zmk_layout import create_default_providers
+from zmk_layout.core import Layout
+
 from glovebox.adapters.zmk_layout.provider_factory import create_glovebox_providers
 from glovebox.core.structlog_logger import StructlogMixin
 from glovebox.layout.models import LayoutData, LayoutResult
 from glovebox.models.base import GloveboxBaseModel
-
-
-# zmk-layout library imports with type annotations
-try:
-    from zmk_layout import LayoutCompiler, LayoutConfig  # type: ignore[import-untyped]
-except ImportError:
-    # Fallback imports if zmk-layout structure is different
-    try:
-        from zmk_layout.compiler import LayoutCompiler  # type: ignore[import-untyped]
-        from zmk_layout.config import LayoutConfig  # type: ignore[import-untyped]
-    except ImportError:
-        # Define minimal interfaces if library not available
-        class LayoutCompiler:  # type: ignore[no-redef]
-            def __init__(self, providers: Any) -> None:
-                pass
-
-            def compile_json_to_dtsi(self, json_data: Any, output_dir: Any) -> dict[str, Any]:
-                return {"keymap": "", "config": ""}
-
-        class LayoutConfig:  # type: ignore[no-redef]
-            def __init__(self) -> None:
-                pass
 
 
 class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
@@ -44,7 +25,10 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
         keyboard_id: str | None = None,
         services: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__()
+        # Initialize both parent classes properly
+        GloveboxBaseModel.__init__(self)
+        StructlogMixin.__init__(self)
+
         self.keyboard_id = keyboard_id
 
         # Create glovebox providers for zmk-layout
@@ -52,8 +36,8 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             keyboard_id=keyboard_id, services=services
         )
 
-        # Initialize zmk-layout compiler with our providers
-        self.compiler = LayoutCompiler(providers=self.providers)
+        # Create default zmk-layout providers as fallback
+        self.zmk_providers = create_default_providers()
 
         self.logger.info(
             "zmk_layout_service_initialized",
@@ -84,35 +68,46 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             # Convert glovebox LayoutData to zmk-layout JSON format
             json_data = layout_data.to_dict()
 
-            # Use zmk-layout compiler to generate DTSI content
-            result = self.compiler.compile_json_to_dtsi(
-                json_data=json_data,
-                output_dir=str(output_dir) if output_dir else None,
-            )
+            # Use zmk-layout Layout class to generate content
+            layout = Layout.from_dict(json_data, providers=self.zmk_providers)
+            keymap_content = layout.to_keymap()
+            # Generate output files using zmk-layout
+            # The save method writes files and returns self, not a result dict
+            # if output_dir:
+            #     layout.save(str(output_dir))
+            #     # TODO: Read the generated files back to provide content
+            #     result = {"keymap_content": "", "config_content": ""}
+            # else:
+            #     # For stdout output, zmk-layout doesn't have direct content generation
+            #     # Return a message indicating this limitation
+            #     result = {
+            #         "keymap_content": "# zmk-layout library integration active\n# File-based output only - use -o option to generate files",
+            #         "config_content": "# zmk-layout library integration active\n# File-based output only - use -o option to generate files",
+            #     }
 
-            # Extract generated content
-            keymap_content = result.get("keymap", "")
-            config_content = result.get("config", "")
+            # Extract generated content - zmk-layout may use different keys
+            # keymap_content = result.get("keymap_content", result.get("keymap", ""))
+            # config_content = result.get("config_content", result.get("config", ""))
 
             # Create successful LayoutResult
             layout_result = LayoutResult(
                 success=True,
                 keymap_content=keymap_content,
-                config_content=config_content,
+                config_content="",
                 json_content=json_data,
                 errors=[],
-                warnings=result.get("warnings", []),
+                # warnings=result.get("warnings", []),
                 messages=[
                     "Layout compiled successfully with zmk-layout library",
                     f"Generated {len(keymap_content)} chars keymap content",
-                    f"Generated {len(config_content)} chars config content",
+                    # f"Generated {len(config_content)} chars config content",
                 ],
             )
 
             self.logger.info(
                 "layout_compilation_successful",
                 keymap_size=len(keymap_content),
-                config_size=len(config_content),
+                # config_size=len(config_content),
                 warnings_count=len(layout_result.warnings),
             )
 
@@ -155,12 +150,17 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
 
             json_data = layout_data.to_dict()
 
-            # Use zmk-layout validation (if available)
-            if hasattr(self.compiler, "validate_layout"):
-                validation_result = self.compiler.validate_layout(json_data)
-                errors = validation_result.get("errors", [])
-            else:
-                # Fallback to provider-based validation
+            # Use zmk-layout validation
+            try:
+                layout = Layout.from_dict(json_data, providers=self.zmk_providers)
+                validation_errors = layout.validate()
+                errors = (
+                    [str(error) for error in validation_errors]
+                    if validation_errors
+                    else []
+                )
+            except Exception as e:
+                # Fallback to provider-based validation if zmk-layout validation fails
                 validation_rules = self.providers.configuration.get_validation_rules()
                 errors = []
 
@@ -170,8 +170,16 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
 
                 key_count = validation_rules.get("key_count", 42)
                 for i, layer in enumerate(layout_data.layers):
-                    layer_bindings = getattr(layer, 'bindings', layer) if hasattr(layer, 'bindings') else layer
-                    binding_count = len(layer_bindings) if isinstance(layer_bindings, (list, tuple)) else key_count
+                    layer_bindings = (
+                        getattr(layer, "bindings", layer)
+                        if hasattr(layer, "bindings")
+                        else layer
+                    )
+                    binding_count = (
+                        len(layer_bindings)
+                        if isinstance(layer_bindings, list | tuple)
+                        else key_count
+                    )
                     if binding_count != key_count:
                         errors.append(
                             f"Layer {i} has {binding_count} bindings, expected {key_count}"
@@ -226,9 +234,17 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             Dictionary with compiler information
         """
         try:
+            # Try to get zmk-layout version
+            try:
+                import zmk_layout
+
+                version = getattr(zmk_layout, "__version__", "unknown")
+            except ImportError:
+                version = "not installed"
+
             info = {
                 "library": "zmk-layout",
-                "version": getattr(self.compiler, "version", "unknown"),
+                "version": version,
                 "providers": {
                     "configuration": type(self.providers.configuration).__name__,
                     "template": type(self.providers.template).__name__,

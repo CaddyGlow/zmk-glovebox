@@ -14,6 +14,7 @@ from glovebox.cli.decorators import (
     with_metrics,
     with_profile,
 )
+from glovebox.cli.helpers.theme import get_themed_console
 from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.layout import ViewMode
 
@@ -361,6 +362,262 @@ def compile_layout(
     """
     command = CompileLayoutCommand()
     command.execute(ctx, input, output, profile, no_auto, force, format)
+
+
+class ZmkLayoutCompileCommand(ProfileAwareLayoutCommand):
+    """Command to compile using zmk-layout library explicitly with enhanced features."""
+
+    def get_operation_name(self) -> str:
+        """Get the operation name for error reporting."""
+        return "zmk-layout compile"
+
+    def execute(
+        self,
+        ctx: typer.Context,
+        input: str,
+        output: str | None,
+        profile: str | None,
+        no_auto: bool,
+        force: bool,
+        format: str,
+        validate_only: bool = False,
+    ) -> None:
+        """Execute the zmk-layout compile command."""
+        self.execute_with_profile(
+            ctx,
+            input,
+            no_auto,
+            output=output,
+            force=force,
+            format=format,
+            validate_only=validate_only,
+        )
+
+    def execute_command(
+        self,
+        layout_data: dict[str, Any],
+        keyboard_profile: "KeyboardProfile",
+        service: "LayoutService",
+        output: str | None = None,
+        force: bool = False,
+        format: str = "text",
+        validate_only: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        """Execute the specific zmk-layout compilation logic."""
+        # Get the zmk-layout service if available
+        zmk_service = getattr(service, "_zmk_layout_service", None)
+
+        if zmk_service is None:
+            raise ValueError(
+                "zmk-layout integration not available. "
+                "Ensure zmk-layout library is installed or use regular 'compile' command."
+            )
+
+        self.console.print_info("Using zmk-layout library for enhanced compilation...")
+
+        # Convert dict to LayoutData if needed
+        from glovebox.layout.models import LayoutData
+
+        if isinstance(layout_data, dict):
+            layout_model = LayoutData.model_validate(layout_data)
+        else:
+            layout_model = layout_data
+
+        if validate_only:
+            # Validation only mode
+            self.console.print_info("Validating layout with zmk-layout...")
+            errors = zmk_service.validate_layout(layout_model)
+
+            if errors:
+                self.console.print_error(
+                    f"Validation failed with {len(errors)} errors:"
+                )
+                for error in errors:
+                    self.console.print_error(f"  • {error}")
+                raise ValueError(
+                    f"Layout validation failed: {len(errors)} errors found"
+                )
+            else:
+                self.console.print_success("Layout validation passed ✓")
+                self.console.print_info("Layout is valid and ready for compilation")
+                return
+
+        # Full compilation with zmk-layout
+        result = zmk_service.compile_layout(
+            layout_model, output_dir=Path(output).parent if output else None
+        )
+
+        if result.success:
+            # Initialize variables for potential use
+            keymap_file = None
+            config_file = None
+
+            # Write output using OutputHandler if output specified
+            if output:
+                if result.keymap_content:
+                    keymap_file = Path(output).with_suffix(".keymap")
+                    self.write_output(result.keymap_content, str(keymap_file), "text")
+                if result.config_content:
+                    config_file = Path(output).with_suffix(".conf")
+                    self.write_output(result.config_content, str(config_file), "text")
+
+                self.console.print_success(
+                    "Layout compiled successfully with zmk-layout ✓"
+                )
+                if keymap_file:
+                    self.console.print_info(f"  keymap: {keymap_file}")
+                if config_file:
+                    self.console.print_info(f"  config: {config_file}")
+
+                # Show additional zmk-layout specific info
+                if result.warnings:
+                    self.console.print_warning(f"Warnings ({len(result.warnings)}):")
+                    for warning in result.warnings:
+                        self.console.print_warning(f"  • {warning}")
+
+                if result.messages:
+                    for message in result.messages:
+                        self.console.print_info(f"  • {message}")
+            else:
+                # Output to stdout
+                if format == "json":
+                    output_data = {
+                        "success": True,
+                        "library": "zmk-layout",
+                        "keymap_content": result.keymap_content,
+                        "config_content": result.config_content,
+                        "warnings": result.warnings,
+                        "messages": result.messages,
+                    }
+                    self.format_and_print(output_data, "json")
+                else:
+                    self.console.print_success(
+                        "Layout compiled successfully with zmk-layout ✓"
+                    )
+                    if result.keymap_content:
+                        # Use the underlying Rich console for raw output
+                        self.console.console.print(result.keymap_content)
+        else:
+            raise ValueError(
+                f"zmk-layout compilation failed: {'; '.join(result.errors)}"
+            )
+
+
+@handle_errors
+@with_profile(required=False, firmware_optional=False, support_auto_detection=True)
+@with_metrics("zmk_layout_compile")
+def zmk_layout_compile(
+    ctx: typer.Context,
+    input: Annotated[
+        str,
+        typer.Argument(
+            help="JSON layout file, @library-ref, '-' for stdin, or env:GLOVEBOX_JSON_FILE"
+        ),
+    ],
+    output: Annotated[
+        str | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory/base filename (e.g., 'config/my_glove80'). Auto-generated if not specified.",
+        ),
+    ] = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            "-p",
+            help="Keyboard profile in format 'keyboard' or 'keyboard/firmware'",
+        ),
+    ] = None,
+    no_auto: Annotated[
+        bool,
+        typer.Option(
+            "--no-auto",
+            help="Disable automatic profile detection from JSON keyboard field",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force", "-f", help="Overwrite existing files without prompting"
+        ),
+    ] = False,
+    format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text, json"),
+    ] = "text",
+    validate_only: Annotated[
+        bool,
+        typer.Option(
+            "--validate-only",
+            help="Only validate layout without generating output files",
+        ),
+    ] = False,
+) -> None:
+    """Compile ZMK files using zmk-layout library with enhanced features.
+
+    This command explicitly uses the zmk-layout library for compilation,
+    providing enhanced validation, better error messages, and additional
+    features compared to the standard compile command.
+
+    Examples:
+        glovebox layout zmk-compile layout.json -o output/glove80
+        glovebox layout zmk-compile layout.json --validate-only
+        glovebox layout zmk-compile @my-layout --format json
+        cat layout.json | glovebox layout zmk-compile - --profile glove80/v25.05
+    """
+    command = ZmkLayoutCompileCommand()
+    command.execute(ctx, input, output, profile, no_auto, force, format, validate_only)
+
+
+@handle_errors
+def zmk_layout_info() -> None:
+    """Show information about zmk-layout integration and capabilities."""
+    console = get_themed_console()
+
+    try:
+        # Try to create a zmk-layout service to get info
+        from glovebox.layout.zmk_layout_service import create_zmk_layout_service
+
+        service = create_zmk_layout_service()
+        info = service.get_compiler_info()
+
+        console.print_success("ZMK-Layout Integration Information")
+        console.console.print()
+
+        console.print_info(f"Library: {info.get('library', 'unknown')}")
+        console.print_info(f"Version: {info.get('version', 'unknown')}")
+
+        console.console.print()
+        console.print_info("Providers:")
+        providers = info.get("providers", {})
+        for provider_type, provider_class in providers.items():
+            console.print_info(f"  • {provider_type}: {provider_class}")
+
+        console.console.print()
+        console.print_info("Capabilities:")
+        capabilities = info.get("capabilities", [])
+        for capability in capabilities:
+            console.print_info(f"  • {capability}")
+
+        console.console.print()
+        supported_keyboards = service.get_supported_keyboards()
+        if supported_keyboards:
+            console.print_info(f"Supported keyboards ({len(supported_keyboards)}):")
+            for keyboard in supported_keyboards:
+                console.print_info(f"  • {keyboard}")
+
+        console.console.print()
+        console.print_success("✓ zmk-layout integration is available and working")
+
+    except ImportError:
+        console.print_error("zmk-layout library is not installed")
+        console.print_info("Install with: pip install zmk-layout")
+    except Exception as e:
+        console.print_error(f"zmk-layout integration error: {e}")
+        console.print_info("Use 'glovebox layout compile' for standard compilation")
 
 
 @handle_errors

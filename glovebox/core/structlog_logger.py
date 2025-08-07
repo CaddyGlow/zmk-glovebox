@@ -106,7 +106,14 @@ class StructlogMixin:
             **context: Additional context
         """
         # Determine if we should include stack trace based on debug level
-        exc_info = self.logger.isEnabledFor(logging.DEBUG)
+        # Use the appropriate method for structured logging
+        if hasattr(self.logger, "isEnabledFor"):
+            exc_info = self.logger.isEnabledFor(logging.DEBUG)
+        elif hasattr(self.logger, "is_enabled_for"):
+            exc_info = self.logger.is_enabled_for(logging.DEBUG)
+        else:
+            # Default to including stack trace for safety
+            exc_info = logging.getLogger().isEnabledFor(logging.DEBUG)
 
         self.logger.error(
             message,
