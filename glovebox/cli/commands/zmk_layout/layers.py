@@ -91,7 +91,7 @@ def list_layers(
                 console.console.print(
                     "[red]Error:[/red] No input provided via stdin", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(content)
                 source_name = "stdin"
@@ -99,7 +99,7 @@ def list_layers(
                 console.console.print(
                     f"[red]Error:[/red] Invalid JSON input: {e}", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
         else:
             input_path = Path(input_file)
             if not input_path.exists():
@@ -107,7 +107,7 @@ def list_layers(
                     f"[red]Error:[/red] Input file not found: {input_path}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(input_path.read_text())
                 source_name = input_path.name
@@ -116,7 +116,7 @@ def list_layers(
                     f"[red]Error:[/red] Invalid JSON in {input_path}: {e}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
 
         # Convert dict to LayoutData
         layout_data = LayoutData.model_validate(layout_dict)
@@ -141,7 +141,7 @@ def list_layers(
             unique_bindings = len(set(bindings))
 
             # Find dominant behavior
-            behaviors = {}
+            behaviors: dict[str, int] = {}
             for binding in bindings:
                 if isinstance(binding, str) and binding.startswith("&"):
                     behavior = binding.split(" ")[0] if " " in binding else binding
@@ -244,7 +244,7 @@ def list_layers(
     except Exception as e:
         logger.error("list_layers_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @layers_app.command(name="add")
@@ -339,7 +339,7 @@ def add_layer(
     except Exception as e:
         logger.error("add_layer_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @layers_app.command(name="remove")
@@ -405,7 +405,7 @@ def remove_layer(
     except Exception as e:
         logger.error("remove_layer_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @layers_app.command(name="move")
@@ -465,4 +465,4 @@ def move_layer(
     except Exception as e:
         logger.error("move_layer_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None

@@ -94,7 +94,7 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
 
             build_output_dir, manual_cleanup_needed = get_build_output_dir(output, ctx)
             compilation_type, compile_config = resolve_compilation_type(
-                profile, strategy
+                profile, strategy, ctx
             )
 
             # TODO: we don't need to update the config from the profile here TBC
@@ -168,7 +168,9 @@ class CompileFirmwareCommand(FirmwareOutputCommand):
                     )
 
                     process_compilation_output(result, resolved_input_file, output)
-                    format_compilation_output(result, output_format, build_output_dir)
+                    format_compilation_output(
+                        result, output_format, build_output_dir, ctx
+                    )
                 else:
                     raise ValueError(f"Compilation failed: {'; '.join(result.errors)}")
 

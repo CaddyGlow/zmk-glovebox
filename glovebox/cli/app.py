@@ -226,7 +226,7 @@ def main_callback(
         else:
             log_level = app_context.user_config.get_log_level_int()
 
-        setup_logging(log_level=log_level, log_file=log_file)
+        setup_logging(log_level_name=logging.getLevelName(log_level), log_file=log_file)
     else:
         # Use new configuration-based logging
         setup_logging_from_config(app_context.user_config._config.logging_config)
@@ -290,7 +290,7 @@ def main() -> int:
         exit_code = e.code if isinstance(e.code, int) else 0
 
     except Exception as e:
-        exc_info = logger.is_enabled_for(logging.DEBUG)
+        exc_info = logger.isEnabledFor(logging.DEBUG)
         logger.error("unexpected_cli_error", error=str(e), exc_info=exc_info)
 
         # Check if we should print stack trace (verbosity level)

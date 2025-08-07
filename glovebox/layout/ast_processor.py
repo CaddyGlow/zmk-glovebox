@@ -140,7 +140,7 @@ class KeyRemapTransformer(ASTTransformer[DTNode]):
         # Find and transform bindings properties
         if hasattr(transformed_node, "properties"):
             for prop in transformed_node.properties:
-                if prop.name == "bindings":
+                if hasattr(prop, "name") and prop.name == "bindings":
                     self._transform_bindings(prop, context)
 
         return transformed_node
@@ -312,12 +312,12 @@ class ASTProcessor(GloveboxBaseModel, StructlogMixin):
     def __init__(self, parser: ZMKKeymapParser | None = None):
         super().__init__()
         self.parser = parser or ZMKKeymapParser()
-        self.transformers: list[ASTTransformer] = []
+        self.transformers: list[ASTTransformer[DTNode]] = []
         self.dry_run_mode = False
         self.enable_rollback = True
         self.max_rollback_points = 10
 
-    def register_transformer(self, transformer: ASTTransformer) -> None:
+    def register_transformer(self, transformer: ASTTransformer[DTNode]) -> None:
         """Register a transformer in the pipeline."""
         self.transformers.append(transformer)
         # Sort by priority to ensure correct execution order
@@ -340,7 +340,7 @@ class ASTProcessor(GloveboxBaseModel, StructlogMixin):
 
     def parse_keymap(
         self, content: str, validate: bool = True
-    ) -> tuple[DTNode, list[TransformationError]]:
+    ) -> tuple[DTNode | None, list[TransformationError]]:
         """Parse keymap content to AST."""
         try:
             result = self.parser.parse_keymap(content)
@@ -359,7 +359,11 @@ class ASTProcessor(GloveboxBaseModel, StructlogMixin):
             if validate:
                 validation_errors = self._validate_ast(ast_node)
                 if validation_errors:
-                    return ast_node, validation_errors
+                    # Convert ValidationError to TransformationError
+                    transformation_errors = [
+                        TransformationError(str(err)) for err in validation_errors
+                    ]
+                    return ast_node, transformation_errors
 
             return ast_node, []
 
@@ -372,7 +376,7 @@ class ASTProcessor(GloveboxBaseModel, StructlogMixin):
         """Extract AST node from parse result."""
         # This is a placeholder - real implementation would extract the actual AST
         # from the zmk-layout library's parse result
-        return DTNode(name="keymap", properties=[], children=[])
+        return DTNode("keymap")
 
     def _validate_ast(self, ast: DTNode) -> list[ValidationError]:
         """Validate AST structure."""
@@ -397,7 +401,7 @@ class ASTProcessor(GloveboxBaseModel, StructlogMixin):
 
         # Parse the layout to AST
         ast, parse_errors = self.parse_keymap(layout_content)
-        if parse_errors:
+        if parse_errors or ast is None:
             return TransformationResult(
                 success=False,
                 errors=parse_errors,
@@ -447,7 +451,7 @@ class ASTProcessor(GloveboxBaseModel, StructlogMixin):
 
     def _get_active_transformers(
         self, filter_names: list[str] | None
-    ) -> list[ASTTransformer]:
+    ) -> list[ASTTransformer[DTNode]]:
         """Get list of active transformers, optionally filtered by names."""
         if filter_names is None:
             return [t for t in self.transformers if t.enabled]
@@ -460,7 +464,7 @@ class ASTProcessor(GloveboxBaseModel, StructlogMixin):
         return filtered
 
     def _apply_transformation(
-        self, transformer: ASTTransformer, state: PipelineState
+        self, transformer: ASTTransformer[DTNode], state: PipelineState
     ) -> TransformationResult:
         """Apply a single transformation to the pipeline state."""
         self.logger.debug("applying_transformation", transformer=transformer.name)

@@ -144,15 +144,15 @@ class LayoutFileCommand(BaseLayoutCommand):
         """
         if not file_path.exists():
             self.console.print_error(f"Layout file not found: {file_path}")
-            ctx.exit(1)
+            raise typer.Exit(1)
 
         if not file_path.is_file():
             self.console.print_error(f"Path is not a file: {file_path}")
-            ctx.exit(1)
+            raise typer.Exit(1)
 
         if file_path.suffix.lower() != ".json":
             self.console.print_error(f"Layout file must be a JSON file: {file_path}")
-            ctx.exit(1)
+            raise typer.Exit(1)
 
 
 class LayoutOutputCommand(LayoutFileCommand):

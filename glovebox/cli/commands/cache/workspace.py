@@ -41,6 +41,7 @@ workspace_app = typer.Typer(help="Workspace cache management")
 
 @workspace_app.command(name="show")
 def workspace_show(
+    ctx: typer.Context,
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Output all cache entries in JSON format"),
@@ -204,7 +205,10 @@ def workspace_show(
             )
 
     except Exception as e:
-        log_error_with_debug_stack(logger, "Error in workspace_show: %s", e)
+        exc_info = (
+            logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+        )
+        logger.error("Error in workspace_show: %s", e, exc_info=exc_info)
         console.print(
             format_status_message(f"Error displaying workspace cache: {e}", "error")
         )
@@ -213,6 +217,7 @@ def workspace_show(
 
 @workspace_app.command(name="delete")
 def workspace_delete(
+    ctx: typer.Context,
     repository: Annotated[
         str | None,
         typer.Argument(
@@ -326,13 +331,17 @@ def workspace_delete(
                 ctx.exit(1)
 
     except Exception as e:
-        logger.error("Failed to delete workspace cache: %s", e)
+        exc_info = (
+            logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+        )
+        logger.error("Failed to delete workspace cache: %s", e, exc_info=exc_info)
         console.print(format_status_message(f"Error: {e}", "error"))
         ctx.exit(1)
 
 
 @workspace_app.command(name="cleanup")
 def workspace_cleanup(
+    ctx: typer.Context,
     max_age_days: Annotated[
         float,
         typer.Option(
@@ -415,13 +424,17 @@ def workspace_cleanup(
             )
 
     except Exception as e:
-        logger.error("Failed to cleanup workspace cache: %s", e)
+        exc_info = (
+            logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+        )
+        logger.error("Failed to cleanup workspace cache: %s", e, exc_info=exc_info)
         console.print(format_status_message(f"Error: {e}", "error"))
         ctx.exit(1)
 
 
 @workspace_app.command(name="add")
 def workspace_add(
+    ctx: typer.Context,
     workspace_source: Annotated[
         str,
         typer.Argument(
@@ -528,6 +541,7 @@ def workspace_add(
                             f"Using direct archive extraction for {source_path.name}",
                             "info",
                         )
+                        # repository is already checked for None above
                         result = workspace_cache_service.cache_workspace_from_archive(
                             archive_path=source_path,
                             repository=repository,
@@ -543,6 +557,7 @@ def workspace_add(
                             progress_context=progress_context,
                         )
 
+                        # repository is already checked for None above
                         result = workspace_cache_service.inject_existing_workspace(
                             workspace_path=workspace_path,
                             repository=repository,
@@ -569,6 +584,7 @@ def workspace_add(
                     )
                     ctx.exit(1)
 
+                # repository is already checked for None above
                 result = workspace_cache_service.inject_existing_workspace(
                     workspace_path=workspace_path,
                     repository=repository,
@@ -688,7 +704,10 @@ def workspace_add(
             ctx.exit(1)
 
     except Exception as e:
-        logger.error("Failed to add workspace to cache: %s", e)
+        exc_info = (
+            logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+        )
+        logger.error("Failed to add workspace to cache: %s", e, exc_info=exc_info)
         console.print(f"[{Colors.ERROR}]Error: {e}[/{Colors.ERROR}]")
         ctx.exit(1)
 
@@ -955,7 +974,10 @@ def workspace_export(
             ctx.exit(1)
 
     except Exception as e:
-        logger.error("Failed to export workspace: %s", e)
+        exc_info = (
+            logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+        )
+        logger.error("Failed to export workspace: %s", e, exc_info=exc_info)
         console.print(f"[{Colors.ERROR}]Error: {e}[/{Colors.ERROR}]")
         ctx.exit(1)
 
@@ -1167,7 +1189,10 @@ def workspace_create(
             ctx.exit(1)
 
     except Exception as e:
-        logger.error("Failed to create workspace: %s", e)
+        exc_info = (
+            logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+        )
+        logger.error("Failed to create workspace: %s", e, exc_info=exc_info)
         console.print(f"[{Colors.ERROR}]Error: {e}[/{Colors.ERROR}]")
         ctx.exit(1)
 
@@ -1454,7 +1479,10 @@ def workspace_update(
             ctx.exit(1)
 
     except Exception as e:
-        logger.error("Failed to update workspace: %s", e)
+        exc_info = (
+            logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+        )
+        logger.error("Failed to update workspace: %s", e, exc_info=exc_info)
         console.print(format_status_message(f"Error: {e}", "error"))
         ctx.exit(1)
 

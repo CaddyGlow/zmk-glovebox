@@ -4,12 +4,13 @@ JSON to DTSI conversion capabilities using the complete fluent API.
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 from zmk_layout import create_default_providers
 from zmk_layout.core import Layout
-from zmk_layout.core.exceptions import ExportError, LayoutError, ValidationError
+from zmk_layout.core.exceptions import LayoutError, ValidationError
 
 from glovebox.adapters.zmk_layout.provider_factory import create_glovebox_providers
 from glovebox.core.structlog_logger import StructlogMixin
@@ -98,8 +99,9 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             )
 
             # Generate config content
-            config_content, kconfig_settings = (
-                layout.export.config().with_defaults(True).generate()
+            config_result = layout.export.config().with_defaults(True).generate()
+            config_content = (
+                config_result[0] if isinstance(config_result, tuple) else config_result
             )
 
             # Get layout statistics for reporting
@@ -156,7 +158,7 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
 
             return layout_result
 
-        except ExportError as e:
+        except LayoutError as e:
             self.logger.error(
                 "layout_export_failed",
                 error=str(e),
@@ -344,7 +346,7 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
 
                 if action == "add":
                     position = op.get("position")
-                    layer_proxy = layout.layers.add(layer_name, position=position)
+                    layer_proxy = layout.layers.add(str(layer_name), position=position)
                     self.logger.debug(
                         "layer_added",
                         layer=layer_name,
@@ -352,7 +354,7 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                     )
 
                 elif action == "remove":
-                    layout.layers.remove(layer_name)
+                    layout.layers.remove(str(layer_name))
                     self.logger.debug(
                         "layer_removed",
                         layer=layer_name,
@@ -361,7 +363,8 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                 elif action == "set":
                     position = op.get("position")
                     binding = op.get("binding")
-                    layout.layers.get(layer_name).set(position, binding)
+                    if position is not None and binding is not None:
+                        layout.layers.get(str(layer_name)).set(int(position), binding)
                     self.logger.debug(
                         "binding_set",
                         layer=layer_name,
@@ -370,7 +373,7 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                     )
 
                 elif action == "get":
-                    layer_proxy = layout.layers.get(layer_name)
+                    layer_proxy = layout.layers.get(str(layer_name))
                     self.logger.debug(
                         "layer_accessed",
                         layer=layer_name,
@@ -437,8 +440,8 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                 for name, config in behaviors["combos"].items():
                     layout.behaviors.add_combo(
                         name=name,
-                        key_positions=config["key_positions"],
-                        bindings=config["bindings"],
+                        keys=config["key_positions"],
+                        binding=config["bindings"],
                         timeout_ms=config.get("timeout_ms", 50),
                         layers=config.get("layers"),
                     )
@@ -454,7 +457,7 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                 for name, config in behaviors["macros"].items():
                     layout.behaviors.add_macro(
                         name=name,
-                        bindings=config["bindings"],
+                        sequence=config["bindings"],
                         tap_ms=config.get("tap_ms", 30),
                         wait_ms=config.get("wait_ms", 30),
                     )
@@ -506,7 +509,7 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                 formats=formats,
             )
 
-            results = {}
+            results: dict[str, str | tuple[str, dict[str, Any]]] = {}
 
             if "keymap" in formats:
                 results["keymap"] = (
@@ -520,17 +523,18 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                 )
 
             if "config" in formats:
-                results["config"] = (
+                config_result = (
                     layout.export.config()
                     .with_defaults(True)
                     .generate()  # Returns tuple (content, settings)
                 )
+                results["config"] = config_result
 
             if "json" in formats:
                 results["json"] = layout.export.to_json(indent=2)
 
             if "dict" in formats:
-                results["dict"] = layout.export.to_dict()
+                results["dict"] = str(layout.export.to_dict())
 
             self.logger.info(
                 "multiple_formats_exported",
@@ -553,7 +557,7 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                 error=str(e),
                 exc_info=self.logger.isEnabledFor(logging.DEBUG),
             )
-            raise ExportError(f"Multiple format export failed: {e}") from e
+            raise LayoutError(f"Multiple format export failed: {e}") from e
 
     def get_supported_keyboards(self) -> list[str]:
         """Get list of keyboards supported by zmk-layout.
@@ -639,7 +643,9 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             )
             return {"error": str(e)}
 
-    def batch_operations(self, layout: Layout, operations: list[callable]) -> Layout:
+    def batch_operations(
+        self, layout: Layout, operations: list[Callable[[Layout], Layout]]
+    ) -> Layout:
         """Execute multiple operations using zmk-layout's batch_operation method.
 
         Args:

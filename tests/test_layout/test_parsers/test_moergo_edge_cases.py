@@ -85,28 +85,30 @@ class TestMoErgoEdgeCases:
 
     def test_edge_case_transformations_logged(self):
         """Test that edge case transformations are properly logged."""
-        from unittest.mock import Mock
+        from unittest.mock import Mock, patch
 
         parser = ZmkKeymapParser()
-        parser.logger = Mock()
 
-        # Test &sys_reset transformation logging
-        result = parser._preprocess_moergo_binding_edge_cases("&sys_reset")
-        assert result == "&reset"
-        parser.logger.debug.assert_called_with(
-            "Transforming &sys_reset to &reset for MoErgo compatibility"
-        )
+        with patch.object(parser, "logger") as mock_logger:
+            # Test &sys_reset transformation logging
+            result = parser._preprocess_moergo_binding_edge_cases("&sys_reset")
+            assert result == "&reset"
+            mock_logger.debug.assert_called_with(
+                "Transforming &sys_reset to &reset for MoErgo compatibility"
+            )
 
-        # Reset mock
-        parser.logger.reset_mock()
+            # Reset mock
+            mock_logger.reset_mock()
 
-        # Test &magic cleanup logging
-        result = parser._preprocess_moergo_binding_edge_cases("&magic LAYER_Magic 0")
-        assert result == "&magic"
-        parser.logger.debug.assert_called_with(
-            "Cleaning up &magic parameters for MoErgo compatibility: %s -> &magic",
-            "&magic LAYER_Magic 0",
-        )
+            # Test &magic cleanup logging
+            result = parser._preprocess_moergo_binding_edge_cases(
+                "&magic LAYER_Magic 0"
+            )
+            assert result == "&magic"
+            mock_logger.debug.assert_called_with(
+                "Cleaning up &magic parameters for MoErgo compatibility: %s -> &magic",
+                "&magic LAYER_Magic 0",
+            )
 
     def test_multiple_edge_cases_in_sequence(self):
         """Test processing multiple edge cases in sequence."""

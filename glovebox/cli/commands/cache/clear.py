@@ -95,7 +95,7 @@ class CacheClearCommand(IOCommand):
             )
         except Exception as e:
             console.print(f"[red]Failed to clear module cache: {e}[/red]")
-            ctx.exit(1)
+            raise typer.Exit(1) from e
 
     def _clear_by_age(self, max_age_days: int) -> None:
         """Age-based cleanup using cache system."""
@@ -129,9 +129,12 @@ class CacheClearCommand(IOCommand):
                 console.print("[yellow]No expired entries found to remove[/yellow]")
 
         except Exception as e:
-            logger.error("Failed to cleanup cache: %s", e)
+            exc_info = (
+                logger.isEnabledFor(logger.DEBUG) if hasattr(logger, "DEBUG") else False
+            )
+            logger.error("Failed to cleanup cache: %s", e, exc_info=exc_info)
             console.print(f"[red]Error during cleanup: {e}[/red]")
-            ctx.exit(1)
+            raise typer.Exit(1) from e
 
     def _clear_all_cache(self, diskcache_root: Path, force: bool) -> None:
         """Clear all cache types."""
@@ -213,7 +216,7 @@ class CacheClearCommand(IOCommand):
             console.print("[green]Reset shared cache coordination[/green]")
         except Exception as e:
             console.print(f"[red]Failed to clear cache: {e}[/red]")
-            ctx.exit(1)
+            raise typer.Exit(1) from e
 
 
 @handle_errors

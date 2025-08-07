@@ -1,6 +1,7 @@
 """Unified configuration editing commands."""
 
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -66,6 +67,10 @@ class ConfigEditor:
             if not self.user_config.get(field_path):
                 raise ValueError(f"Field '{field_path}' not found or is None")
         except Exception as e:
+            exc_info = logger.isEnabledFor(logging.DEBUG)
+            logger.error(
+                "Failed to get field '%s': %s", field_path, e, exc_info=exc_info
+            )
             raise ValueError(f"Cannot get field '{field_path}': {e}") from e
 
     def set_field(self, field_path: str, value: Any) -> None:
@@ -268,7 +273,9 @@ def get_field_info(key: str) -> tuple[Any, str]:
             try:
                 # Pydantic v2 factory functions may need special handling
                 default_val = field_info.default_factory()  # type: ignore
-            except Exception:
+            except Exception as e:
+                exc_info = logger.isEnabledFor(logging.DEBUG)
+                logger.error("Failed to call default factory: %s", e, exc_info=exc_info)
                 default_val = f"<factory: {field_info.default_factory}>"
         description = field_info.description or "No description available"
 
@@ -336,7 +343,7 @@ def edit(
             print_error_message(
                 "Interactive mode (--interactive) cannot be combined with other operations"
             )
-            ctx.exit(1)
+            raise typer.Exit(1)
 
         _handle_interactive_edit(app_ctx)
         return
@@ -348,7 +355,7 @@ def edit(
         print_error_message(
             "At least one operation (--get, --set, --unset, --merge, --append, --interactive) must be specified"
         )
-        ctx.exit(1)
+        raise typer.Exit(1)
 
     if not has_writes:
         # Handle read-only operations
@@ -514,7 +521,7 @@ def _handle_interactive_edit(app_ctx: AppContext) -> None:
         app_ctx.user_config.save()
         if not config_file_path:
             print_error_message("Failed to determine config file path")
-            ctx.exit(1)
+            raise typer.Exit(1)
 
     # Get the file modification time before editing
     original_mtime = (
@@ -537,6 +544,10 @@ def _handle_interactive_edit(app_ctx: AppContext) -> None:
                     app_ctx.user_config.reload()
                     print_success_message("Configuration reloaded successfully")
                 except Exception as e:
+                    exc_info = logger.isEnabledFor(logging.DEBUG)
+                    logger.error(
+                        "Configuration validation failed: %s", e, exc_info=exc_info
+                    )
                     print_error_message(
                         f"Configuration file has validation errors: {e}"
                     )
@@ -550,24 +561,28 @@ def _handle_interactive_edit(app_ctx: AppContext) -> None:
                         print_error_message(
                             "Configuration changes were not applied due to validation errors"
                         )
-                        ctx.exit(1)
+                        raise typer.Exit(1) from None
             else:
                 print_success_message("No changes made to configuration file")
         else:
             print_error_message("Configuration file was deleted during editing")
-            ctx.exit(1)
+            raise typer.Exit(1)
 
     except subprocess.CalledProcessError as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Editor process failed: %s", e, exc_info=exc_info)
         print_error_message(f"Editor exited with error code {e.returncode}")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
     except FileNotFoundError as e:
+        exc_info = logger.isEnabledFor(logging.DEBUG)
+        logger.error("Editor not found: %s", e, exc_info=exc_info)
         print_error_message(
             f"Editor '{editor}' not found. Please check your editor configuration."
         )
         print_error_message(
             "You can set the editor with: glovebox config edit --set editor=your_editor"
         )
-        ctx.exit(1)
-    except KeyboardInterrupt as e:
+        raise typer.Exit(1) from None
+    except KeyboardInterrupt:
         print_error_message("Interactive editing cancelled")
-        ctx.exit(1)
+        raise typer.Exit(1) from None

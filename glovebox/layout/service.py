@@ -428,7 +428,7 @@ def create_enhanced_layout_service(
             from glovebox.layout.zmk_layout_service import create_zmk_layout_service
 
             # Don't pass services dict - let the provider factory create real services
-            service._zmk_layout_service = create_zmk_layout_service(
+            service._zmk_layout_service = create_zmk_layout_service(  # type: ignore[attr-defined]
                 keyboard_id=keyboard_id
             )
 

@@ -258,8 +258,13 @@ class TestProviderFactory:
         }
 
         # Configure mock settings to avoid attribute errors
-        mock_services["settings"].get_active_keyboard_id.return_value = "test_keyboard"
-        mock_services["logging"].get_logger.return_value = Mock()
+        settings_mock = mock_services["settings"]
+        logging_mock = mock_services["logging"]
+        assert settings_mock is not None
+        assert logging_mock is not None
+
+        settings_mock.get_active_keyboard_id.return_value = "test_keyboard"
+        logging_mock.get_logger.return_value = Mock()
 
         # Provider creation should succeed (uses error handling inside)
         providers = create_glovebox_providers(services=mock_services)

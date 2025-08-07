@@ -113,11 +113,13 @@ def batch_compile(
     """
     try:
         # Find matching files
-        import glob
-
         if "/" in pattern or "*" in pattern:
-            # Glob pattern
-            files = [Path(f) for f in glob.glob(pattern, recursive=True)]
+            # Glob pattern - use pathlib
+            base_path = Path()
+            files = list(base_path.glob(pattern))
+            if not files:
+                # Try rglob for recursive patterns
+                files = list(base_path.rglob(pattern))
         else:
             # Single file
             files = [Path(pattern)]
@@ -145,7 +147,12 @@ def batch_compile(
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Results tracking
-        results = {"success": 0, "failed": 0, "errors": [], "files_processed": []}
+        results: dict[str, Any] = {
+            "success": 0,
+            "failed": 0,
+            "errors": [],
+            "files_processed": [],
+        }
 
         # Progress tracking
         with Progress(
@@ -153,7 +160,7 @@ def batch_compile(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TaskProgressColumn(),
-            console=console,
+            console=console.console,
         ) as progress:
             task = progress.add_task("Compiling layouts...", total=len(files))
 
@@ -173,7 +180,7 @@ def batch_compile(
                             console.console.print(
                                 f"[red]Error:[/red] {error_msg}", style="error"
                             )
-                            ctx.exit(1)
+                            raise typer.Exit(1) from None
                         continue
 
                     # Determine output structure
@@ -218,7 +225,7 @@ def batch_compile(
                         console.console.print(
                             f"[red]Error:[/red] {error_msg}", style="error"
                         )
-                        ctx.exit(1)
+                        raise typer.Exit(1) from None
 
                 progress.advance(task)
 
@@ -256,12 +263,12 @@ def batch_compile(
 
         # Exit with error if any compilation failed and not continue_on_error
         if results["failed"] > 0 and not continue_on_error:
-            ctx.exit(1)
+            raise typer.Exit(1) from None
 
     except Exception as e:
         logger.error("batch_compile_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @batch_app.command(name="validate")
@@ -347,7 +354,7 @@ def batch_validate(
     except Exception as e:
         logger.error("batch_validate_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @batch_app.command(name="stats")
@@ -428,4 +435,4 @@ def batch_stats(
     except Exception as e:
         logger.error("batch_stats_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None

@@ -73,7 +73,7 @@ def process_workspace_source(
     # Check if source exists
     if not source_path.exists():
         console.print(f"[red]Source does not exist: {source_path}[/red]")
-        ctx.exit(1)
+        raise typer.Exit(1)
 
     # If it's a directory, validate and return
     if source_path.is_dir():
@@ -93,7 +93,7 @@ def process_workspace_source(
     console.print(
         "[dim]Supported sources: directory, .zip file, or URL to .zip file[/dim]"
     )
-    ctx.exit(1)
+    raise typer.Exit(1)
 
 
 def download_and_extract_zip(
@@ -178,7 +178,7 @@ def download_and_extract_zip(
                                     progress_bar.update(task_id, completed=downloaded)
                     except Exception as e:
                         console.print(f"[red]Download failed: {e}[/red]")
-                        ctx.exit(1)
+                        raise typer.Exit(1) from e
 
                 download_with_progress()
         else:
@@ -188,7 +188,7 @@ def download_and_extract_zip(
                 urllib.request.urlretrieve(url, zip_path)
             except Exception as e:
                 console.print(f"[red]Download failed: {e}[/red]")
-                ctx.exit(1)
+                raise typer.Exit(1) from e
 
         # Mark download as completed
         # TODO: Enable after refactoring
@@ -234,7 +234,7 @@ def extract_local_zip(
     """
     if not zipfile.is_zipfile(zip_path):
         console.print(f"[red]Invalid zip file: {zip_path}[/red]")
-        ctx.exit(1)
+        raise typer.Exit(1)
 
     temp_dir = Path(tempfile.mkdtemp(prefix="glovebox_local_zip_"))
 
@@ -373,7 +373,7 @@ def extract_zip_file(
         #     progress_coordinator.set_enhanced_task_status("Extracting Files", "failed")
         console.print(f"[red]Extraction failed: {e}[/red]")
         shutil.rmtree(extract_dir, ignore_errors=True)
-        ctx.exit(1)
+        raise typer.Exit(1) from e
 
 
 def find_workspace_in_directory(base_dir: Path, console: Console) -> Path:
@@ -407,7 +407,7 @@ def find_workspace_in_directory(base_dir: Path, console: Console) -> Path:
     # No workspace found
     console.print("[red]No valid ZMK workspace found in zip file[/red]")
     console.print("[dim]Expected directories: zmk/, zephyr/, modules/[/dim]")
-    ctx.exit(1)
+    raise typer.Exit(1)
 
 
 def validate_workspace_directory(workspace_path: Path, console: Console) -> Path:
@@ -429,7 +429,7 @@ def validate_workspace_directory(workspace_path: Path, console: Console) -> Path
         console.print(
             "[dim]Expected ZMK workspace structure: zmk/, zephyr/, modules/[/dim]"
         )
-        ctx.exit(1)
+        raise typer.Exit(1)
 
     return workspace_path
 
@@ -481,7 +481,10 @@ def create_zip_archive(
         compresslevel=compression_level,
     ) as zipf:
         # Add workspace metadata as JSON
-        metadata_json = json.dumps(metadata.model_dump(mode="json"), indent=2)
+        metadata_json = json.dumps(
+            metadata.model_dump(by_alias=True, exclude_unset=True, mode="json"),
+            indent=2,
+        )
         zipf.writestr(".glovebox_export_metadata.json", metadata_json)
 
         # Add all workspace files
@@ -570,7 +573,10 @@ def create_tar_archive(
 
     with tarfile.open(output_path, mode=mode) as tar:  # type: ignore[call-overload]
         # Add workspace metadata as JSON
-        metadata_json = json.dumps(metadata.model_dump(mode="json"), indent=2)
+        metadata_json = json.dumps(
+            metadata.model_dump(by_alias=True, exclude_unset=True, mode="json"),
+            indent=2,
+        )
         metadata_bytes = metadata_json.encode("utf-8")
 
         # Create tarinfo for metadata file

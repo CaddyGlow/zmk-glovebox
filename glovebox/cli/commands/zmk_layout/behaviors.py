@@ -90,7 +90,7 @@ def list_behaviors(
                 console.console.print(
                     "[red]Error:[/red] No input provided via stdin", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(content)
                 source_name = "stdin"
@@ -98,7 +98,7 @@ def list_behaviors(
                 console.console.print(
                     f"[red]Error:[/red] Invalid JSON input: {e}", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
         else:
             input_path = Path(input_file)
             if not input_path.exists():
@@ -106,7 +106,7 @@ def list_behaviors(
                     f"[red]Error:[/red] Input file not found: {input_path}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(input_path.read_text())
                 source_name = input_path.name
@@ -115,14 +115,14 @@ def list_behaviors(
                     f"[red]Error:[/red] Invalid JSON in {input_path}: {e}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
 
         # Convert dict to LayoutData
         layout_data = LayoutData.model_validate(layout_dict)
 
         # Extract behaviors from layout
-        behaviors = {}
-        behavior_types = {}
+        behaviors: dict[str, int] = {}
+        behavior_types: dict[str, str] = {}
 
         for layer in layout_data.layers:
             layer_bindings = getattr(layer, "bindings", layer)
@@ -227,7 +227,7 @@ def list_behaviors(
     except Exception as e:
         logger.error("list_behaviors_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @behaviors_app.command(name="validate")
@@ -279,7 +279,7 @@ def validate_behaviors(
                 console.console.print(
                     "[red]Error:[/red] No input provided via stdin", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(content)
                 source_name = "stdin"
@@ -287,7 +287,7 @@ def validate_behaviors(
                 console.console.print(
                     f"[red]Error:[/red] Invalid JSON input: {e}", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
         else:
             input_path = Path(input_file)
             if not input_path.exists():
@@ -295,7 +295,7 @@ def validate_behaviors(
                     f"[red]Error:[/red] Input file not found: {input_path}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(input_path.read_text())
                 source_name = input_path.name
@@ -304,7 +304,7 @@ def validate_behaviors(
                     f"[red]Error:[/red] Invalid JSON in {input_path}: {e}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
 
         # Get keyboard profile
         app_context = ctx.obj
@@ -362,12 +362,12 @@ def validate_behaviors(
 
         # Exit with error if validation failed
         if behavior_errors:
-            ctx.exit(1)
+            raise typer.Exit(1) from None
 
     except Exception as e:
         logger.error("validate_behaviors_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @behaviors_app.command(name="add")
@@ -462,7 +462,7 @@ def add_behavior(
     except Exception as e:
         logger.error("add_behavior_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
 
 
 @behaviors_app.command(name="remove")
@@ -532,4 +532,4 @@ def remove_behavior(
     except Exception as e:
         logger.error("remove_behavior_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None

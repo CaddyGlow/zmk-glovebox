@@ -127,7 +127,7 @@ def export_layout(
                 f"[red]Error:[/red] Invalid format '{format}'. Must be one of: {', '.join(valid_formats)}",
                 style="error",
             )
-            ctx.exit(1)
+            raise typer.Exit(1) from None
 
         # Handle input
         if input_file == "-" or is_stdin_input(input_file):
@@ -138,7 +138,7 @@ def export_layout(
                 console.console.print(
                     "[red]Error:[/red] No input provided via stdin", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(content)
                 source_name = "stdin"
@@ -146,7 +146,7 @@ def export_layout(
                 console.console.print(
                     f"[red]Error:[/red] Invalid JSON input: {e}", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
         else:
             input_path = Path(input_file)
             if not input_path.exists():
@@ -154,7 +154,7 @@ def export_layout(
                     f"[red]Error:[/red] Input file not found: {input_path}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
             try:
                 layout_dict = json.loads(input_path.read_text())
                 source_name = input_path.stem
@@ -163,7 +163,7 @@ def export_layout(
                     f"[red]Error:[/red] Invalid JSON in {input_path}: {e}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
 
         # Get keyboard profile for zmk-layout service
         app_context = ctx.obj
@@ -206,7 +206,7 @@ def export_layout(
             )
             for error in result.errors:
                 console.console.print(f"  • {error}", style="error")
-            ctx.exit(1)
+            raise typer.Exit(1) from None
 
         # Prepare exports
         exports: dict[str, tuple[str, str]] = {}  # format -> (content, extension)
@@ -252,7 +252,7 @@ def export_layout(
                 filepath = output_dir / filename
 
                 try:
-                    output_handler.write_file(filepath, content)
+                    filepath.write_text(content, encoding="utf-8")
                     exported_files.append(filepath)
 
                     if verbose:
@@ -294,7 +294,7 @@ def export_layout(
                     "[red]Error:[/red] Multiple formats cannot be output to stdout. Use -o option or specify single format.",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
 
             export_format, (content, _) = next(iter(exports.items()))
             console.console.print(content, highlight=False)
@@ -316,4 +316,4 @@ def export_layout(
     except Exception as e:
         logger.error("zmk_layout_export_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None

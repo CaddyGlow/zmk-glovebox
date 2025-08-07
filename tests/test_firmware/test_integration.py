@@ -546,11 +546,18 @@ class TestFirmwareCommandIntegration:
             # Execute command
             command.execute(
                 ctx=Mock(),
-                firmware_file=str(sample_firmware_file),
-                device_path=None,
-                wait=False,
-                force=False,
-                format="json",
+                firmware_files=[sample_firmware_file],
+                profile=mock_keyboard_profile,
+                query="",
+                timeout=10,
+                count=1,
+                track_flashed=False,
+                skip_existing=False,
+                no_wait=True,
+                poll_interval=None,
+                show_progress=False,
+                paired=False,
+                output_format="json",
             )
 
             # Verify service was called correctly
@@ -588,11 +595,18 @@ class TestFirmwareCommandIntegration:
             # Execute command with specific device path
             command.execute(
                 ctx=Mock(),
-                firmware_file=str(sample_firmware_file),
-                device_path="/dev/specified_device",
-                wait=False,
-                force=False,
-                format="text",
+                firmware_files=[sample_firmware_file],
+                profile=mock_keyboard_profile,
+                query="/dev/specified_device",
+                timeout=10,
+                count=1,
+                track_flashed=False,
+                skip_existing=False,
+                no_wait=True,
+                poll_interval=None,
+                show_progress=False,
+                paired=False,
+                output_format="text",
             )
 
             # Verify service was called with device path
@@ -629,11 +643,18 @@ class TestFirmwareCommandIntegration:
             # Execute command
             command.execute(
                 ctx=Mock(),
-                firmware_file=str(sample_firmware_file),
-                device_path=None,
-                wait=False,
-                force=False,
-                format="text",
+                firmware_files=[sample_firmware_file],
+                profile=mock_keyboard_profile,
+                query="",
+                timeout=10,
+                count=1,
+                track_flashed=False,
+                skip_existing=False,
+                no_wait=True,
+                poll_interval=None,
+                show_progress=False,
+                paired=False,
+                output_format="text",
             )
 
     def test_compile_command_integration(
@@ -673,11 +694,16 @@ class TestFirmwareCommandIntegration:
             # Execute command
             command.execute(
                 ctx=Mock(),
-                input=str(json_file),
-                output=str(output_dir),
-                method="zmk_config",
-                force=False,
-                format="json",
+                input_file=str(json_file),
+                config_file=None,
+                profile=mock_keyboard_profile,
+                strategy="zmk_config",
+                output_format="json",
+                progress=False,
+                show_logs=False,
+                debug=False,
+                output=Path(output_dir),
+                config_flags=None,
             )
 
             # Verify service was called correctly
@@ -731,11 +757,16 @@ class TestFirmwareCommandIntegration:
             # Execute command with stdin
             command.execute(
                 ctx=Mock(),
-                input="-",  # stdin
-                output=str(output_dir),
-                method="moergo",
-                force=False,
-                format="text",
+                input_file="-",  # stdin
+                config_file=None,
+                profile=mock_keyboard_profile,
+                strategy="moergo",
+                output_format="text",
+                progress=False,
+                show_logs=False,
+                debug=False,
+                output=Path(output_dir),
+                config_flags=None,
             )
 
             # Verify stdin was loaded and compile_from_data was called
@@ -834,20 +865,27 @@ class TestFirmwareMemoryFirstPatterns:
         with patch.object(service, "compile_from_data") as mock_compile:
             mock_compile.return_value = mock_result
 
+            # Create proper LayoutData and config objects
+            from glovebox.compilation.models import ZmkCompilationConfig
+            from glovebox.layout.models import LayoutData
+
+            layout_data_obj = LayoutData(layers=layout_data)
+            config_obj = ZmkCompilationConfig(method_type="zmk_config")
+
             # Call with memory data (new pattern)
             result = service.compile_from_data(
-                layout_data=layout_data,
+                layout_data=layout_data_obj,
                 output_dir=output_dir,
-                config={"method": "zmk_config"},
+                config=config_obj,
                 keyboard_profile=mock_keyboard_profile,
             )
 
             # Verify memory-first pattern worked
             assert result.success is True
             mock_compile.assert_called_once_with(
-                layout_data=layout_data,
+                layout_data=layout_data_obj,
                 output_dir=output_dir,
-                config={"method": "zmk_config"},
+                config=config_obj,
                 keyboard_profile=mock_keyboard_profile,
             )
 
@@ -861,7 +899,16 @@ class TestFirmwareMemoryFirstPatterns:
         firmware_file = tmp_path / "memory_firmware.uf2"
         firmware_file.write_bytes(b"memory firmware content")
 
-        service = create_flash_service()
+        from glovebox.adapters import create_file_adapter
+        from glovebox.firmware.flash.device_wait_service import (
+            create_device_wait_service,
+        )
+
+        file_adapter = create_file_adapter()
+        device_wait_service = create_device_wait_service()
+        service = create_flash_service(
+            file_adapter=file_adapter, device_wait_service=device_wait_service
+        )
 
         # Mock successful flash
         mock_result = FlashResult(success=True, devices_flashed=1)

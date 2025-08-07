@@ -154,7 +154,7 @@ class ValidateLayoutCommand(ProfileAwareLayoutCommand):
                 self.console.print_error("Layout validation failed")
                 for error in result["errors"]:
                     self.console.print_error(f"  - {error}")
-                ctx.exit(1)
+                raise ValueError("Layout validation failed")
 
 
 class ShowLayoutCommand(ProfileAwareLayoutCommand):
@@ -226,10 +226,9 @@ class ShowLayoutCommand(ProfileAwareLayoutCommand):
             if name.lower() == layer_lower:
                 return i
 
-        self.console.print_error(
+        raise ValueError(
             f"Layer '{layer}' not found. Available: {', '.join(layer_names)}"
         )
-        ctx.exit(1)
 
     def _handle_rich_format(
         self,
@@ -416,13 +415,10 @@ class ZmkLayoutCompileCommand(ProfileAwareLayoutCommand):
 
         self.console.print_info("Using zmk-layout library for enhanced compilation...")
 
-        # Convert dict to LayoutData if needed
+        # Convert dict to LayoutData
         from glovebox.layout.models import LayoutData
 
-        if isinstance(layout_data, dict):
-            layout_model = LayoutData.model_validate(layout_data)
-        else:
-            layout_model = layout_data
+        layout_model = LayoutData.model_validate(layout_data)
 
         if validate_only:
             # Validation only mode

@@ -602,7 +602,7 @@ class LayoutEditCommand(BaseLayoutCommand):
             self.console.print_error(
                 "JSON file is required. Provide as argument or set GLOVEBOX_JSON_FILE environment variable."
             )
-            ctx.exit(1)
+            raise typer.Exit(1)
 
         # Check if only read operations are requested
         has_writes = self._has_write_operations(

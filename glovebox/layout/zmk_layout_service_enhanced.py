@@ -20,6 +20,7 @@ from glovebox.layout.ast_processor import (
     KeyRemapTransformer,
     LayerMergeTransformer,
     MacroTransformer,
+    TransformationError,
     TransformationResult,
 )
 from glovebox.layout.models import LayoutData, LayoutResult
@@ -129,7 +130,7 @@ class EnhancedZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
 
             # Use zmk-layout Layout class to generate content
             layout = Layout.from_dict(json_data, providers=self.zmk_providers)
-            keymap_content = layout.to_keymap()
+            keymap_content = layout.export.keymap().generate()
 
             # Create successful LayoutResult
             messages = [
@@ -199,7 +200,7 @@ class EnhancedZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             if isinstance(layout_content, dict):
                 # Convert dict to keymap string using zmk-layout
                 layout = Layout.from_dict(layout_content, providers=self.zmk_providers)
-                keymap_content = layout.to_keymap()
+                keymap_content = layout.export.keymap().generate()
             else:
                 keymap_content = layout_content
 
@@ -224,7 +225,7 @@ class EnhancedZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             )
             return TransformationResult(
                 success=False,
-                errors=[f"Transformation processing failed: {e}"],
+                errors=[TransformationError(f"Transformation processing failed: {e}")],
                 transformation_log=["AST processing error"],
             )
 
@@ -376,18 +377,13 @@ class EnhancedZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             json_data = layout_data.to_dict()
 
             # Use zmk-layout validation
+            errors: list[str] = []
             try:
                 layout = Layout.from_dict(json_data, providers=self.zmk_providers)
-                validation_errors = layout.validate()
-                errors = (
-                    [str(error) for error in validation_errors]
-                    if validation_errors
-                    else []
-                )
+                layout.validate()  # This raises ValidationError if invalid
             except Exception as e:
                 # Fallback to provider-based validation if zmk-layout validation fails
                 validation_rules = self.providers.configuration.get_validation_rules()
-                errors = []
 
                 # Basic validation using rules
                 if len(layout_data.layers) > validation_rules.get("layer_limit", 32):

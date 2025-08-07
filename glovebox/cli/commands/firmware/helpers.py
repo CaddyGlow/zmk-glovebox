@@ -43,7 +43,7 @@ logger = get_struct_logger(__name__)
 
 
 def resolve_compilation_type(
-    keyboard_profile: KeyboardProfile, strategy: str | None
+    keyboard_profile: KeyboardProfile, strategy: str | None, ctx: typer.Context
 ) -> tuple[str, CompilationConfigUnion]:
     """Resolve compilation type and config from profile."""
     # Get the appropriate compile method config from the keyboard profile
@@ -106,7 +106,7 @@ def update_config_from_profile(
 
 
 def format_compilation_output(
-    result: BuildResult, output_format: str, output_dir: Path
+    result: BuildResult, output_format: str, output_dir: Path, ctx: typer.Context
 ) -> None:
     """Format and display compilation results."""
     if result.success:
@@ -529,7 +529,7 @@ def compile_json_to_firmware(
         try:
             # Resolve compilation strategy and config
             compilation_strategy, compile_config = resolve_compilation_type(
-                keyboard_profile, None
+                keyboard_profile, None, ctx
             )
 
             # Update config with profile settings

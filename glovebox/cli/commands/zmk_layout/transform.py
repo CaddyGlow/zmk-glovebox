@@ -48,19 +48,19 @@ def transform_group(ctx: click.Context) -> None:
 )
 @click.option("--expand-macros", is_flag=True, help="Expand macro definitions")
 @click.option("--generate-combos", help="Combo generation patterns as JSON")
-@with_profile
-@with_metrics
+@with_profile()
+@with_metrics("zmk_layout.transform.apply")
 @handle_errors
 def apply(
     input_file: Path,
     output: Path | None,
     dry_run: bool,
-    remap: tuple[str],
+    remap: tuple[str, ...],
     merge_layers: str | None,
-    modify_behavior: tuple[str],
+    modify_behavior: tuple[str, ...],
     expand_macros: bool,
     generate_combos: str | None,
-    app_context,
+    app_context: Any,
 ) -> None:
     """Apply AST transformations to a layout file."""
     console = get_themed_console()
@@ -115,7 +115,7 @@ def apply(
 
         # Configure behavior modifications
         if modify_behavior:
-            behavior_mods = {}
+            behavior_mods: dict[str, dict[str, str]] = {}
             for mod in modify_behavior:
                 if ":" in mod and "=" in mod:
                     behavior_part, param_part = mod.split(":", 1)
@@ -199,7 +199,8 @@ def apply(
                     if compile_result.success:
                         if output:
                             # Write to output file
-                            output.write_text(compile_result.keymap_content)
+                            keymap_content = compile_result.keymap_content or ""
+                            output.write_text(keymap_content)
                             console.console.print(
                                 f"[green]✓ Transformed layout written to:[/green] {output}"
                             )
@@ -215,8 +216,8 @@ def apply(
                             console.console.print(f"  • {error}")
             else:
                 console.console.print("[red]✗ Transformations failed[/red]")
-                for error in transformation_result.errors:
-                    console.console.print(f"  • {error}")
+                for error_msg in transformation_result.errors:
+                    console.console.print(f"  • {error_msg}")
         else:
             console.console.print("[yellow]No transformations configured[/yellow]")
             console.console.print(
@@ -230,10 +231,10 @@ def apply(
 
 @transform_group.command()
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
-@with_profile
-@with_metrics
+@with_profile()
+@with_metrics("zmk_layout.transform.info")
 @handle_errors
-def info(input_file: Path, app_context) -> None:
+def info(input_file: Path, app_context: Any) -> None:
     """Show transformation capabilities and AST information for a layout."""
     console = get_themed_console()
 
@@ -315,10 +316,10 @@ def info(input_file: Path, app_context) -> None:
 
 
 @transform_group.command()
-@with_profile
-@with_metrics
+@with_profile()
+@with_metrics("zmk_layout.transform.examples")
 @handle_errors
-def examples(app_context) -> None:
+def examples(app_context: Any) -> None:
     """Show examples of AST transformation commands."""
     console = get_themed_console()
 

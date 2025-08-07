@@ -74,7 +74,12 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
 
             # Try to generate config content if available
             try:
-                config_content = layout.export.config().generate()
+                config_result = layout.export.config().generate()
+                config_content = (
+                    config_result[0]
+                    if isinstance(config_result, tuple)
+                    else config_result
+                )
             except Exception:
                 # Config generation may not be available for all layouts
                 config_content = ""
@@ -142,18 +147,13 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
             json_data = layout_data.to_dict()
 
             # Use zmk-layout validation
+            errors: list[str] = []
             try:
                 layout = Layout.from_dict(json_data, providers=self.zmk_providers)
-                validation_errors = layout.validate()
-                errors = (
-                    [str(error) for error in validation_errors]
-                    if validation_errors
-                    else []
-                )
+                layout.validate()  # This raises ValidationError if invalid
             except Exception as e:
                 # Fallback to provider-based validation if zmk-layout validation fails
                 validation_rules = self.providers.configuration.get_validation_rules()
-                errors = []
 
                 # Basic validation using rules
                 if len(layout_data.layers) > validation_rules.get("layer_limit", 32):

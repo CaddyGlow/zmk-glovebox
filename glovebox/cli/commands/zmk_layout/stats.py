@@ -23,7 +23,7 @@ console = get_themed_console()
 
 def analyze_layout_statistics(layout_data: LayoutData) -> dict[str, Any]:
     """Analyze layout and generate comprehensive statistics."""
-    stats = {
+    stats: dict[str, Any] = {
         "basic": {
             "keyboard": getattr(layout_data, "keyboard", "unknown"),
             "layer_count": len(layout_data.layers),
@@ -189,7 +189,7 @@ def stats_layout(
                 console.console.print(
                     "[red]Error:[/red] No input provided via stdin", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1)
             try:
                 layout_dict = json.loads(content)
                 source_name = "stdin"
@@ -197,7 +197,7 @@ def stats_layout(
                 console.console.print(
                     f"[red]Error:[/red] Invalid JSON input: {e}", style="error"
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
         else:
             input_path = Path(input_file)
             if not input_path.exists():
@@ -205,7 +205,7 @@ def stats_layout(
                     f"[red]Error:[/red] Input file not found: {input_path}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1)
             try:
                 layout_dict = json.loads(input_path.read_text())
                 source_name = input_path.name
@@ -214,7 +214,7 @@ def stats_layout(
                     f"[red]Error:[/red] Invalid JSON in {input_path}: {e}",
                     style="error",
                 )
-                ctx.exit(1)
+                raise typer.Exit(1) from None
 
         # Get keyboard profile
         app_context = ctx.obj
@@ -224,7 +224,7 @@ def stats_layout(
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
-            console=console,
+            console=console.console,
             transient=True,
         ) as progress:
             task = progress.add_task("Analyzing layout...", total=None)
@@ -378,4 +378,4 @@ def stats_layout(
     except Exception as e:
         logger.error("layout_statistics_failed", error=str(e), exc_info=True)
         console.console.print(f"[red]Error:[/red] {e}", style="error")
-        ctx.exit(1)
+        raise typer.Exit(1) from None
