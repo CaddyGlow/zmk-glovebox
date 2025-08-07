@@ -62,7 +62,7 @@ class InfoLayoutCommand(BaseCommand):
                 self.console.print_info(
                     "Use 'glovebox library list' to see available layouts"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             if format_type == "json":
                 import json
@@ -201,6 +201,6 @@ def info_default(
     if ctx.invoked_subcommand is None:
         if identifier is None:
             typer.echo("Error: Missing layout identifier")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         info(ctx, identifier, show_content, format_type)

@@ -2,16 +2,24 @@
 
 import logging
 import queue
+import shutil
 import sys
 import threading
+from collections.abc import MutableMapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, TextIO
 
 import structlog
+from rich.console import Console
+from rich.traceback import Traceback
 from structlog.stdlib import BoundLogger
-from structlog.typing import Processor
+from structlog.typing import ExcInfo, Processor
 
 from glovebox.config.models.logging import LoggingConfig
+
+
+def setup_logging_from_config(config: "LoggingConfig") -> BoundLogger:
+    return setup_logging()  # json_logs=False, log_level_name="DEBUG", log_file=None)
 
 
 class TUIProgressProtocol(Protocol):
@@ -117,6 +125,13 @@ class TUILogHandler(logging.Handler):
         super().close()
 
 
+suppress_debug = [
+    "ccproxy.scheduler",
+    "ccproxy.observability.context",
+    "ccproxy.utils.simple_request_logger",
+]
+
+
 def configure_structlog(log_level: int = logging.INFO) -> None:
     """Configure structlog with shared processors following canonical pattern."""
     # Shared processors for all structlog loggers
@@ -140,12 +155,28 @@ def configure_structlog(log_level: int = logging.INFO) -> None:
         )
 
     # Common processors for all log levels
+    # First add timestamp with microseconds
+    processors.append(
+        structlog.processors.TimeStamper(
+            fmt="%H:%M:%S.%f" if log_level < logging.INFO else "%Y-%m-%d %H:%M:%S.%f",
+            key="timestamp_raw",
+        )
+    )
+
+    # Then add processor to convert microseconds to milliseconds
+    def format_timestamp_ms(
+        logger: Any, log_method: str, event_dict: MutableMapping[str, Any]
+    ) -> MutableMapping[str, Any]:
+        """Format timestamp with milliseconds instead of microseconds."""
+        if "timestamp_raw" in event_dict:
+            # Truncate microseconds to milliseconds (6 digits to 3)
+            timestamp_raw = event_dict.pop("timestamp_raw")
+            event_dict["timestamp"] = timestamp_raw[:-3]
+        return event_dict
+
     processors.extend(
         [
-            # Use human-readable timestamp for structlog logs in debug mode, normal otherwise
-            structlog.processors.TimeStamper(
-                fmt="%H:%M:%S" if log_level < logging.INFO else "%Y-%m-%d %H:%M:%S"
-            ),
+            format_timestamp_ms,
             structlog.processors.StackInfoRenderer(),
             structlog.dev.set_exc_info,  # Handle exceptions properly
             # This MUST be the last processor - allows different renderers per handler
@@ -158,22 +189,63 @@ def configure_structlog(log_level: int = logging.INFO) -> None:
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,  # Cache for performance
+        cache_logger_on_first_use=True,
     )
 
 
-def setup_logging_from_config(config: "LoggingConfig") -> BoundLogger:
-    return setup_logging()  # json_logs=False, log_level_name="DEBUG", log_file=None)
+def rich_traceback(sio: TextIO, exc_info: ExcInfo) -> None:
+    """Pretty-print *exc_info* to *sio* using the *Rich* package.
+
+    Based on:
+    https://github.com/hynek/structlog/blob/74cdff93af217519d4ebea05184f5e0db2972556/src/structlog/dev.py#L179-L192
+
+    """
+    term_width, _height = shutil.get_terminal_size((80, 123))
+    sio.write("\n")
+    # Rich docs: https://rich.readthedocs.io/en/stable/reference/traceback.html
+    Console(file=sio, color_system="truecolor").print(
+        Traceback.from_exception(
+            *exc_info,
+            # show_locals=True,  # Takes up too much vertical space
+            extra_lines=1,  # Reduce amount of source code displayed
+            width=term_width,  # Maximize width
+            max_frames=5,  # Default is 10
+            suppress=[
+                "click",
+                "typer",
+                "uvicorn",
+                "fastapi",
+                "starlette",
+            ],  # Suppress noise from these libraries
+        ),
+    )
 
 
 def setup_logging(
-    json_logs: bool = False, log_level: int = logging.DEBUG, log_file: str | None = None
+    json_logs: bool = False,
+    log_level_name: str = "DEBUG",
+    log_file: str | None = None,
 ) -> BoundLogger:
     """
     Setup logging for the entire application using canonical structlog pattern.
     Returns a structlog logger instance.
     """
-    # log_level = getattr(logging, log_level_name.upper(), logging.INFO)
+    log_level = getattr(logging, log_level_name.upper(), logging.INFO)
+
+    # Install rich traceback handler globally with frame limit
+    # install_rich_traceback(
+    #     show_locals=log_level <= logging.DEBUG,  # Only show locals in debug mode
+    #     max_frames=max_traceback_frames,
+    #     width=120,
+    #     word_wrap=True,
+    #     suppress=[
+    #         "click",
+    #         "typer",
+    #         "uvicorn",
+    #         "fastapi",
+    #         "starlette",
+    #     ],  # Suppress noise from these libraries
+    # )
 
     # Get root logger and set level BEFORE configuring structlog
     root_logger = logging.getLogger()
@@ -205,11 +277,25 @@ def setup_logging(
         )
 
     # Add appropriate timestamper for console vs file
+    # Using custom lambda to truncate microseconds to milliseconds
     console_timestamper = (
-        structlog.processors.TimeStamper(fmt="%H:%M:%S")
+        structlog.processors.TimeStamper(fmt="%H:%M:%S.%f", key="timestamp_raw")
         if log_level < logging.INFO
-        else structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
+        else structlog.processors.TimeStamper(
+            fmt="%Y-%m-%d %H:%M:%S.%f", key="timestamp_raw"
+        )
     )
+
+    # Processor to convert microseconds to milliseconds
+    def format_timestamp_ms(
+        logger: Any, log_method: str, event_dict: MutableMapping[str, Any]
+    ) -> MutableMapping[str, Any]:
+        """Format timestamp with milliseconds instead of microseconds."""
+        if "timestamp_raw" in event_dict:
+            # Truncate microseconds to milliseconds (6 digits to 3)
+            timestamp_raw = event_dict.pop("timestamp_raw")
+            event_dict["timestamp"] = timestamp_raw[:-3]
+        return event_dict
 
     file_timestamper = structlog.processors.TimeStamper(fmt="iso")
 
@@ -219,14 +305,16 @@ def setup_logging(
     console_renderer = (
         structlog.processors.JSONRenderer()
         if json_logs
-        else structlog.dev.ConsoleRenderer()
+        else structlog.dev.ConsoleRenderer(
+            exception_formatter=rich_traceback  # structlog.dev.rich_traceback,  # Use rich for better formatting
+        )
     )
 
     # Console gets human-readable timestamps for both structlog and stdlib logs
-    console_processors = shared_processors + [console_timestamper]
+    console_processors = shared_processors + [console_timestamper, format_timestamp_ms]
     console_handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
-            foreign_pre_chain=console_processors,
+            foreign_pre_chain=console_processors,  # type: ignore[arg-type]
             processor=console_renderer,
         )
     )
@@ -295,6 +383,13 @@ def setup_logging(
         noisy_logger.handlers = []
         noisy_logger.propagate = True
         noisy_logger.setLevel(noisy_log_level)
+
+    [
+        logging.getLogger(logger_name).setLevel(
+            logging.INFO if log_level <= logging.DEBUG else log_level
+        )  # type: ignore[func-returns-value]
+        for logger_name in suppress_debug
+    ]
 
     return structlog.get_logger()  # type: ignore[no-any-return]
 

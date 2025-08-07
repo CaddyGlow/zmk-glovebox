@@ -202,7 +202,7 @@ def show_firmware(
         print("Available firmwares:")
         for name in firmwares:
             print_list_item(name)
-        raise typer.Exit(1)
+        ctx.exit(1)
 
     firmware_config = firmwares[firmware_name]
 

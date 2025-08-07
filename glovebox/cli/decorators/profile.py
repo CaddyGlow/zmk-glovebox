@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 from click.core import Context
+from click.exceptions import Exit
 
 from glovebox.core.structlog_logger import get_struct_logger
 
@@ -90,6 +91,9 @@ def with_profile(
                     # Profile is already stored in context by the unified function
                     # Call the original function
                     return func(*args, **kwargs)
+                except (typer.Exit, Exit):
+                    # Let typer.Exit and click.Exit pass through
+                    raise
                 except Exception:
                     # If profile resolution fails and it's not required, continue with None
                     if hasattr(ctx.obj, "__dict__"):
@@ -185,7 +189,7 @@ def with_profile(
                 # Profile is already stored in context by the unified function
                 # Call the original function
                 return func(*args, **kwargs)
-            except typer.Exit:
+            except (typer.Exit, Exit):
                 # Profile creation already handled the error, just re-raise
                 raise
             except Exception as e:
@@ -296,7 +300,7 @@ def with_metrics(
 
                     return result
 
-                except typer.Exit as exit_error:
+                except (typer.Exit, Exit) as exit_error:
                     # Handle typer.Exit (CLI exit with specific code)
                     if auto_success_failure and track_counter and counter:
                         if exit_error.exit_code == 0:
@@ -483,6 +487,9 @@ def with_cache(
 
                 logger.debug("Cache services created successfully with tag: %s", tag)
 
+            except (typer.Exit, Exit):
+                # Let typer.Exit and click.Exit pass through
+                raise
             except Exception as e:
                 if required:
                     logger.error("Failed to create cache services: %s", e)
@@ -785,7 +792,7 @@ def with_user_config(
 
                 logger.debug("User config successfully set up for command")
 
-            except typer.Exit:
+            except (typer.Exit, Exit):
                 # Re-raise exit exceptions
                 raise
             except Exception as e:

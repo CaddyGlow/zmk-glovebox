@@ -97,7 +97,7 @@ class CacheDeleteCommand(IOCommand):
         else:
             console.print("[red]Must specify --keys, --json-file, or --pattern[/red]")
             self._show_usage_examples()
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         return keys_to_delete
 
@@ -125,10 +125,10 @@ class CacheDeleteCommand(IOCommand):
 
             # If we reach here, the JSON format is invalid
             console.print(f"[red]Invalid JSON format in {json_file}[/red]")
-            raise typer.Exit(1)
+            ctx.exit(1)
         except Exception as e:
             console.print(f"[red]Error reading JSON file: {e}[/red]")
-            raise typer.Exit(1) from e
+            ctx.exit(1)
 
     def _handle_compilation_safety(
         self, keys_to_delete: list[str], pattern: str

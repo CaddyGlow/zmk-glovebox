@@ -98,7 +98,7 @@ class SearchLayoutCommand(BaseCommand):
                 self.console.print_error("Search failed:")
                 for error in result.errors:
                     self.print_operation_info(f"  {error}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
         except Exception as e:
             self.handle_service_error(e, "search layouts")

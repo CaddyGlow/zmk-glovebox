@@ -154,7 +154,7 @@ class ValidateLayoutCommand(ProfileAwareLayoutCommand):
                 self.console.print_error("Layout validation failed")
                 for error in result["errors"]:
                     self.console.print_error(f"  - {error}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
 
 class ShowLayoutCommand(ProfileAwareLayoutCommand):
@@ -229,7 +229,7 @@ class ShowLayoutCommand(ProfileAwareLayoutCommand):
         self.console.print_error(
             f"Layer '{layer}' not found. Available: {', '.join(layer_names)}"
         )
-        raise typer.Exit(1)
+        ctx.exit(1)
 
     def _handle_rich_format(
         self,

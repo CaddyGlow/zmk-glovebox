@@ -788,7 +788,7 @@ def show_profile(
             print_error_message(
                 "Cannot use both --profile and positional arguments. Use one or the other."
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         # Parse profile
         if "/" in profile:
@@ -801,7 +801,7 @@ def show_profile(
         print_error_message(
             "Profile name is required (either as positional argument or via --profile)"
         )
-        raise typer.Exit(1)
+        ctx.exit(1)
 
     # Get the profile configuration
     keyboard_config = load_keyboard_config(profile_name, app_ctx.user_config)

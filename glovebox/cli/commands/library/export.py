@@ -75,14 +75,14 @@ class ExportLayoutCommand(IOCommand):
 
             if not source_entry:
                 self.console.print_error(f"Layout not found in library: {source}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Check if source file exists
             if not source_entry.file_path.exists():
                 self.console.print_error(
                     f"Source file not found: {source_entry.file_path}"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Read source layout data
             layout_data = self.load_json_input(str(source_entry.file_path))
@@ -224,7 +224,7 @@ def export_default(
     if ctx.invoked_subcommand is None:
         if source is None or destination is None:
             typer.echo("Error: Missing required arguments: source and destination")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         # Call the main export command
         export_layout(ctx, source, destination, name, add_to_library, force)

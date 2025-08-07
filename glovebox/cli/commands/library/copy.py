@@ -71,14 +71,14 @@ class CopyLayoutCommand(IOCommand):
 
             if not source_entry:
                 self.console.print_error(f"Layout not found in library: {source}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Check if source file exists
             if not source_entry.file_path.exists():
                 self.console.print_error(
                     f"Source file not found: {source_entry.file_path}"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Check if new name already exists (unless force)
             if not force:
@@ -87,7 +87,7 @@ class CopyLayoutCommand(IOCommand):
                         self.console.print_error(
                             f"Layout with name '{new_name}' already exists. Use --force to overwrite."
                         )
-                        raise typer.Exit(1)
+                        ctx.exit(1)
 
             # Read and modify the source layout
             self.console.print_info(f"Copying layout: {source_entry.name}")
@@ -162,7 +162,7 @@ class CopyLayoutCommand(IOCommand):
                     self.console.print_error("Failed to copy layout to library:")
                     for error in fetch_result.errors:
                         self.console.print_info(f"  {error}")
-                    raise typer.Exit(1)
+                    ctx.exit(1)
 
             finally:
                 # Clean up temporary file
@@ -257,7 +257,7 @@ def copy_default(
     if ctx.invoked_subcommand is None:
         if source is None or new_name is None:
             typer.echo("Error: Missing required arguments: source and new_name")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         # Call the main copy command
         copy_layout(ctx, source, new_name, title, tags, notes, force)

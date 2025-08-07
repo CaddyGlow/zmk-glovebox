@@ -208,7 +208,7 @@ def workspace_show(
         console.print(
             format_status_message(f"Error displaying workspace cache: {e}", "error")
         )
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 @workspace_app.command(name="delete")
@@ -277,7 +277,7 @@ def workspace_delete(
                         f"Failed to delete cached workspace for {repository}", "error"
                     )
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
         else:
             # Delete all workspaces
             cached_workspaces = workspace_cache_service.list_cached_workspaces()
@@ -323,12 +323,12 @@ def workspace_delete(
                         "Failed to delete any cached workspaces", "error"
                     )
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
     except Exception as e:
         logger.error("Failed to delete workspace cache: %s", e)
         console.print(format_status_message(f"Error: {e}", "error"))
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 @workspace_app.command(name="cleanup")
@@ -417,7 +417,7 @@ def workspace_cleanup(
     except Exception as e:
         logger.error("Failed to cleanup workspace cache: %s", e)
         console.print(format_status_message(f"Error: {e}", "error"))
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 @workspace_app.command(name="add")
@@ -517,7 +517,7 @@ def workspace_add(
                             "Error: Repository must be specified when injecting workspace",
                             err=True,
                         )
-                        raise typer.Exit(1)
+                        ctx.exit(1)
 
                     logger.info(f"Adding workspace cache for {repository}")
                     logger.info(f"Source: {workspace_source}")
@@ -567,7 +567,7 @@ def workspace_add(
                         "Error: Repository must be specified when injecting workspace",
                         err=True,
                     )
-                    raise typer.Exit(1)
+                    ctx.exit(1)
 
                 result = workspace_cache_service.inject_existing_workspace(
                     workspace_path=workspace_path,
@@ -685,12 +685,12 @@ def workspace_add(
             console.print(
                 f"[{Colors.ERROR}]Failed to add workspace to cache: {result.error_message}[/{Colors.ERROR}]"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     except Exception as e:
         logger.error("Failed to add workspace to cache: %s", e)
         console.print(f"[{Colors.ERROR}]Error: {e}[/{Colors.ERROR}]")
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 @workspace_app.command(name="export")
@@ -781,7 +781,7 @@ def workspace_export(
             console.print(
                 f"[{Colors.MUTED}]Supported formats: zip, tar, tar.gz, tar.bz2, tar.xz[/{Colors.MUTED}]"
             )
-            raise typer.Exit(1) from None
+            ctx.exit(1)
 
         # Check if workspace exists in cache
         cache_result = workspace_cache_service.get_cached_workspace(repository, branch)
@@ -793,7 +793,7 @@ def workspace_export(
             console.print(
                 f"[{Colors.MUTED}]Use 'glovebox cache workspace show' to see available workspaces[/{Colors.MUTED}]"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         metadata = cache_result.metadata
 
@@ -952,12 +952,12 @@ def workspace_export(
             console.print(
                 f"[{Colors.ERROR}]Failed to export workspace: {export_result.error_message}[/{Colors.ERROR}]"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     except Exception as e:
         logger.error("Failed to export workspace: %s", e)
         console.print(f"[{Colors.ERROR}]Error: {e}[/{Colors.ERROR}]")
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 @workspace_app.command(name="create")
@@ -1039,7 +1039,7 @@ def workspace_create(
                 console.print(
                     f"[{Colors.ERROR}]Invalid keyboard profile '{profile}': {e}[/{Colors.ERROR}]"
                 )
-                raise typer.Exit(1) from e
+                ctx.exit(1)
 
         # Setup progress tracking
         start_time = time.time()
@@ -1164,12 +1164,12 @@ def workspace_create(
             console.print(
                 f"[{Colors.ERROR}]Failed to create workspace: {result.error_message}[/{Colors.ERROR}]"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     except Exception as e:
         logger.error("Failed to create workspace: %s", e)
         console.print(f"[{Colors.ERROR}]Error: {e}[/{Colors.ERROR}]")
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 @workspace_app.command(name="new")
@@ -1293,7 +1293,7 @@ def workspace_update(
                     "error",
                 )
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         if dependencies_only and new_branch:
             console.print(
@@ -1301,7 +1301,7 @@ def workspace_update(
                     "Error: Cannot use --dependencies-only with --new-branch", "error"
                 )
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         # Setup progress tracking
         start_time = time.time()
@@ -1346,7 +1346,7 @@ def workspace_update(
                             "error",
                         )
                     )
-                    raise typer.Exit(1)
+                    ctx.exit(1)
 
                 # TODO: Enable after refactoring
                 # if progress_coordinator:
@@ -1451,12 +1451,12 @@ def workspace_update(
                     f"Failed to update workspace: {result.error_message}", "error"
                 )
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     except Exception as e:
         logger.error("Failed to update workspace: %s", e)
         console.print(format_status_message(f"Error: {e}", "error"))
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 def register_workspace_commands(app: typer.Typer) -> None:

@@ -92,12 +92,12 @@ class LoginCommand(BaseCommand):
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("authentication_failed", error=str(e), exc_info=exc_info)
             console.print_error(f"Login failed: {e}")
-            raise typer.Exit(1) from None
+            ctx.exit(1)
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("login_operation_failed", error=str(e), exc_info=exc_info)
             console.print_error(f"Unexpected error: {e}")
-            raise typer.Exit(1) from None
+            ctx.exit(1)
 
 
 class LogoutCommand(BaseCommand):
@@ -120,7 +120,7 @@ class LogoutCommand(BaseCommand):
                 "logout_operation_failed", error=str(e), exc_info=exc_info
             )
             console.print_error(f"Error during logout: {e}")
-            raise typer.Exit(1) from None
+            ctx.exit(1)
 
 
 class StatusCommand(BaseCommand):
@@ -209,7 +209,7 @@ class StatusCommand(BaseCommand):
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("status_check_failed", error=str(e), exc_info=exc_info)
             console.print_error(f"Error checking status: {e}")
-            raise typer.Exit(1) from None
+            ctx.exit(1)
 
 
 class KeystoreCommand(BaseCommand):
@@ -317,7 +317,7 @@ class KeystoreCommand(BaseCommand):
                 "Keystore info retrieval failed: %s", e, exc_info=exc_info
             )
             console.print_error(f"Error getting keystore info: {e}")
-            raise typer.Exit(1) from None
+            ctx.exit(1)
 
 
 @moergo_app.command("login")

@@ -84,7 +84,7 @@ def split(
             input_path = Path(input)
             if not input_path.exists():
                 console.print_error(f"Input file does not exist: {input_path}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             with input_path.open() as f:
                 layout_data = json.load(f)
@@ -106,7 +106,7 @@ def split(
             console.print_error(
                 "No keyboard profile available. Use --profile or enable auto-detection."
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         # Convert to LayoutData model
         from glovebox.layout.models import LayoutData
@@ -149,7 +149,7 @@ def split(
             "Failed to split layout: %s", e, exc_info=exc_info
         )
         console.print_error(f"Failed to split layout: {e}")
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 @handle_errors
@@ -210,7 +210,7 @@ def merge(
 
         if keyboard_profile is None:
             console.print_error("Profile is required for layout merge operation")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         # Merge components using component service
         layout_service = create_full_layout_service()
@@ -220,7 +220,7 @@ def merge(
         metadata_file = Path(input_dir) / "metadata.json"
         if not metadata_file.exists():
             console.print_error(f"metadata.json not found in {input_dir}")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         with metadata_file.open() as f:
             metadata_data = json.load(f)
@@ -280,4 +280,4 @@ def merge(
             "Failed to merge layout: %s", e, exc_info=exc_info
         )
         console.print_error(f"Failed to merge layout: {e}")
-        raise typer.Exit(1) from e
+        ctx.exit(1)

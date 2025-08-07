@@ -51,7 +51,7 @@ def resolve_compilation_type(
         print_error_message(
             f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
         )
-        raise typer.Exit(1)
+        ctx.exit(1)
 
     # Determine compilation strategy
     from glovebox.compilation.models import (
@@ -85,7 +85,7 @@ def resolve_compilation_type(
         print_error_message(
             f"No compile methods configured for keyboard '{keyboard_profile.keyboard_name}'"
         )
-        raise typer.Exit(1)
+        ctx.exit(1)
 
     # At this point, compile_config is guaranteed to be not None
     compilation_strategy = compile_config.method_type
@@ -129,7 +129,7 @@ def format_compilation_output(
         print_error_message("Firmware compilation failed")
         for error in result.errors:
             print_list_item(error)
-        raise typer.Exit(1)
+        ctx.exit(1)
 
 
 def determine_firmware_outputs(
@@ -570,7 +570,7 @@ def compile_json_to_firmware(
                 print_error_message(
                     f"Failed to compile {json_file.name}: {'; '.join(result.errors)}"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Find all UF2 files in the output
             uf2_files = []
@@ -599,7 +599,7 @@ def compile_json_to_firmware(
                 print_error_message(
                     f"No firmware files were generated from {json_file.name}"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             return uf2_files
 
@@ -614,4 +614,4 @@ def compile_json_to_firmware(
 
     except Exception as e:
         print_error_message(f"Compilation failed for {json_file.name}: {str(e)}")
-        raise typer.Exit(1) from None
+        ctx.exit(1)

@@ -38,7 +38,7 @@ class ListLayoutCommand(BaseCommand):
                     self.console.print_error(
                         f"Invalid source '{source}'. Valid sources: {', '.join(valid_sources)}"
                     )
-                    raise typer.Exit(1) from None
+                    ctx.exit(1)
 
             # Parse tags filter
             tag_filter = None

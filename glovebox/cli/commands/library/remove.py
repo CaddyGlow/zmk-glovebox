@@ -61,7 +61,7 @@ class RemoveLayoutCommand(BaseCommand):
                 self.console.print_info(
                     "Use 'glovebox library list' to see available layouts"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Show layout information
             self.console.print_info(f"Layout to remove: {entry.name}")
@@ -96,7 +96,7 @@ class RemoveLayoutCommand(BaseCommand):
                 )
             else:
                 self.console.print_error(f"Failed to remove layout '{entry.name}'")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
         except Exception as e:
             self.handle_service_error(e, "remove layout")
@@ -144,6 +144,6 @@ def remove_default(
     if ctx.invoked_subcommand is None:
         if identifier is None:
             typer.echo("Error: Missing layout identifier")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         remove(ctx, identifier, force)

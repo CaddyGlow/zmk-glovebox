@@ -91,7 +91,7 @@ class CacheKeysCommand(IOCommand):
             console.print(
                 f"[red]Error accessing cache for module '{module}': {e}[/red]"
             )
-            raise typer.Exit(1) from e
+            ctx.exit(1)
 
     def _show_all_module_keys(
         self, pattern: str | None, limit: int | None, output_format: str

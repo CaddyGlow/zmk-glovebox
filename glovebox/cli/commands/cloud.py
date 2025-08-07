@@ -52,7 +52,7 @@ class UploadLayoutCommand(IOCommand):
                 self.console.print_error(
                     "Authentication failed. Please run 'glovebox moergo login' first."
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Load JSON input using IOCommand method
             layout_data = self.load_json_input(layout_file)
@@ -124,7 +124,7 @@ class DownloadLayoutCommand(IOCommand):
                 self.console.print_error(
                     "Authentication failed. Please run 'glovebox moergo login' first."
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Download the layout
             layout = client.get_layout(layout_uuid)
@@ -177,7 +177,7 @@ class DownloadLayoutCommand(IOCommand):
             exc_info=exc_info,
         )
         self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
+        ctx.exit(1)
 
 
 class ListLayoutsCommand(IOCommand):
@@ -199,7 +199,7 @@ class ListLayoutsCommand(IOCommand):
                 self.console.print_error(
                     "Authentication failed. Please run 'glovebox moergo login' first."
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # List layouts
             layouts = client.list_user_layouts()
@@ -254,7 +254,7 @@ class ListLayoutsCommand(IOCommand):
             exc_info=exc_info,
         )
         self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
+        ctx.exit(1)
 
 
 class BrowseLayoutsCommand(IOCommand):
@@ -283,7 +283,7 @@ class BrowseLayoutsCommand(IOCommand):
             exc_info=exc_info,
         )
         self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
+        ctx.exit(1)
 
 
 class DeleteLayoutCommand(IOCommand):
@@ -305,7 +305,7 @@ class DeleteLayoutCommand(IOCommand):
                 self.console.print_error(
                     "Authentication failed. Please run 'glovebox moergo login' first."
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Confirm deletion
             self.console.print_warning(
@@ -332,7 +332,7 @@ class DeleteLayoutCommand(IOCommand):
             exc_info=exc_info,
         )
         self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
+        ctx.exit(1)
 
 
 @cloud_app.command()

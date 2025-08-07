@@ -273,7 +273,7 @@ class ListSessionsCommand(BaseCommand):
                 "Failed to list metrics sessions: %s", e, exc_info=exc_info
             )
             self.console.print_error(f"Failed to list metrics sessions: {e}")
-            raise typer.Exit(1) from e
+            ctx.exit(1)
 
 
 class ShowSessionCommand(BaseCommand):
@@ -299,11 +299,11 @@ class ShowSessionCommand(BaseCommand):
                     self.console.print_error(
                         f"No session found matching prefix: {self.session_uuid}"
                     )
-                    raise typer.Exit(1)
+                    ctx.exit(1)
                 return found_uuid
             except ValueError as e:
                 self.console.print_error(str(e))
-                raise typer.Exit(1) from e
+                ctx.exit(1)
         return self.session_uuid
 
     def _output_json(self, data: dict[str, Any]) -> None:
@@ -431,13 +431,13 @@ class ShowSessionCommand(BaseCommand):
             data = cache_manager.get(full_uuid)
             if not data:
                 self.console.print_error(f"Session not found: {full_uuid}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             if not isinstance(data, dict) or "session_info" not in data:
                 self.console.print_error(
                     f"Invalid session data for: {self.session_uuid}"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             if self.output_format == "json":
                 self._output_json(data)
@@ -448,7 +448,7 @@ class ShowSessionCommand(BaseCommand):
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("failed_to_show_session", error=str(e), exc_info=exc_info)
             self.console.print_error(f"Failed to show session: {e}")
-            raise typer.Exit(1) from e
+            ctx.exit(1)
 
 
 class DumpSessionCommand(IOCommand):
@@ -468,11 +468,11 @@ class DumpSessionCommand(IOCommand):
                     self.console.print_error(
                         f"No session found matching prefix: {self.session_uuid}"
                     )
-                    raise typer.Exit(1)
+                    ctx.exit(1)
                 return found_uuid
             except ValueError as e:
                 self.console.print_error(str(e))
-                raise typer.Exit(1) from e
+                ctx.exit(1)
         return self.session_uuid
 
     def _determine_output_path(self, data: dict[str, Any]) -> Path:
@@ -508,7 +508,7 @@ class DumpSessionCommand(IOCommand):
             data = cache_manager.get(full_uuid)
             if not data:
                 self.console.print_error(f"Session not found: {full_uuid}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             output_path = self._determine_output_path(data)
 
@@ -523,7 +523,7 @@ class DumpSessionCommand(IOCommand):
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
             self.logger.error("failed_to_dump_session", error=str(e), exc_info=exc_info)
             self.console.print_error(f"Failed to dump session: {e}")
-            raise typer.Exit(1) from e
+            ctx.exit(1)
 
 
 class CleanSessionsCommand(BaseCommand):
@@ -649,7 +649,7 @@ class CleanSessionsCommand(BaseCommand):
                 "failed_to_clean_sessions", error=str(e), exc_info=exc_info
             )
             self.console.print_error(f"Failed to clean sessions: {e}")
-            raise typer.Exit(1) from e
+            ctx.exit(1)
 
 
 @metrics_app.command("list")

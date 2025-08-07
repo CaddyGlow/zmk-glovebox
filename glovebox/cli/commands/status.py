@@ -63,7 +63,7 @@ class StatusCommand(BaseCommand):
             self.console.print_error(
                 f"Unknown format '{output_format}'. Supported formats: table, json, text"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     def _collect_status_data(
         self, user_config: "UserConfig | None" = None

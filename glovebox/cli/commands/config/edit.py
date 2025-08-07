@@ -336,7 +336,7 @@ def edit(
             print_error_message(
                 "Interactive mode (--interactive) cannot be combined with other operations"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         _handle_interactive_edit(app_ctx)
         return
@@ -348,7 +348,7 @@ def edit(
         print_error_message(
             "At least one operation (--get, --set, --unset, --merge, --append, --interactive) must be specified"
         )
-        raise typer.Exit(1)
+        ctx.exit(1)
 
     if not has_writes:
         # Handle read-only operations
@@ -514,7 +514,7 @@ def _handle_interactive_edit(app_ctx: AppContext) -> None:
         app_ctx.user_config.save()
         if not config_file_path:
             print_error_message("Failed to determine config file path")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     # Get the file modification time before editing
     original_mtime = (
@@ -550,16 +550,16 @@ def _handle_interactive_edit(app_ctx: AppContext) -> None:
                         print_error_message(
                             "Configuration changes were not applied due to validation errors"
                         )
-                        raise typer.Exit(1) from e
+                        ctx.exit(1)
             else:
                 print_success_message("No changes made to configuration file")
         else:
             print_error_message("Configuration file was deleted during editing")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     except subprocess.CalledProcessError as e:
         print_error_message(f"Editor exited with error code {e.returncode}")
-        raise typer.Exit(1) from e
+        ctx.exit(1)
     except FileNotFoundError as e:
         print_error_message(
             f"Editor '{editor}' not found. Please check your editor configuration."
@@ -567,7 +567,7 @@ def _handle_interactive_edit(app_ctx: AppContext) -> None:
         print_error_message(
             "You can set the editor with: glovebox config edit --set editor=your_editor"
         )
-        raise typer.Exit(1) from e
+        ctx.exit(1)
     except KeyboardInterrupt as e:
         print_error_message("Interactive editing cancelled")
-        raise typer.Exit(1) from e
+        ctx.exit(1)

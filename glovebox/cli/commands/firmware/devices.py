@@ -276,14 +276,14 @@ def list_devices(
                 usb_adapter = getattr(flash_service, "usb_adapter", None)
                 if not usb_adapter:
                     console.print_error("USB adapter not available")
-                    raise typer.Exit(1)
+                    ctx.exit(1)
 
                 detector = getattr(usb_adapter, "detector", None)
                 if not detector:
                     console.print_error(
                         "Device monitoring not available in this environment"
                     )
-                    raise typer.Exit(1)
+                    ctx.exit(1)
 
                 # Set the detector reference for use in matches_query
                 detector_ref = detector
@@ -431,4 +431,4 @@ def list_devices(
                     console.print_list_item(message)
     except Exception as e:
         console.print_error(f"Error listing devices: {str(e)}")
-        raise typer.Exit(1) from None
+        ctx.exit(1)

@@ -220,7 +220,7 @@ class ProfileEditCommand(IOCommand):
         if profile_name not in keyboards:
             self.console.print_error(f"Keyboard '{profile_name}' not found")
             self.console.print_error(f"Available keyboards: {', '.join(keyboards)}")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     def _load_keyboard_config(self, profile_name: str) -> KeyboardConfig:
         """Load keyboard configuration for the specified profile.
@@ -265,7 +265,7 @@ class ProfileEditCommand(IOCommand):
             self.console.print_error(
                 "Interactive mode (--interactive) cannot be combined with other operations"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     def _validate_operations(
         self,
@@ -291,7 +291,7 @@ class ProfileEditCommand(IOCommand):
             self.console.print_error(
                 "At least one operation (--get, --set, --add, --remove, --clear, --interactive) must be specified"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     def _handle_interactive_edit(self, profile_name: str) -> None:
         """Handle interactive editing of the keyboard configuration file.
@@ -392,7 +392,7 @@ class ProfileEditCommand(IOCommand):
         self.console.console.print(
             "[blue]Use --interactive mode to edit the YAML files directly, or modify the files manually.[/blue]\n"
         )
-        raise typer.Exit(1)
+        ctx.exit(1)
 
 
 @handle_errors
@@ -546,7 +546,7 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
         for path in keyboard_paths:
             bullet_icon = Icons.get_icon("BULLET", app_ctx.icon_mode)
             console.console.print(f"  {bullet_icon} [dim]{path}[/dim]")
-        raise typer.Exit(1)
+        ctx.exit(1)
 
     # Get the file modification time before editing
     original_mtime = config_file_path.stat().st_mtime
@@ -590,7 +590,7 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
                         console.console.print(
                             f"[bold red]{error_icon} Configuration changes were not applied due to validation errors[/bold red]"
                         )
-                        raise typer.Exit(1) from e
+                        ctx.exit(1)
             else:
                 info_icon = Icons.get_icon("INFO", app_ctx.icon_mode)
                 console.console.print(
@@ -601,14 +601,14 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
             console.console.print(
                 f"[bold red]{error_icon} Keyboard configuration file was deleted during editing[/bold red]"
             )
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     except subprocess.CalledProcessError as e:
         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
         console.console.print(
             f"[bold red]{error_icon} Editor exited with error code {e.returncode}[/bold red]"
         )
-        raise typer.Exit(1) from e
+        ctx.exit(1)
     except FileNotFoundError as e:
         error_icon = Icons.get_icon("ERROR", app_ctx.icon_mode)
         console.console.print(
@@ -617,10 +617,10 @@ def _handle_interactive_profile_edit(profile_name: str, app_ctx: AppContext) -> 
         console.console.print(
             "[yellow]You can set the editor with: glovebox config edit --set editor=your_editor[/yellow]"
         )
-        raise typer.Exit(1) from e
+        ctx.exit(1)
     except KeyboardInterrupt as e:
         warning_icon = Icons.get_icon("WARNING", app_ctx.icon_mode)
         console.console.print(
             f"[yellow]{warning_icon} Interactive editing cancelled[/yellow]"
         )
-        raise typer.Exit(1) from e
+        ctx.exit(1)

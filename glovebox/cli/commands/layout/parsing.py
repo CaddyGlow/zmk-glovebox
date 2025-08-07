@@ -70,7 +70,7 @@ class ParseKeymapCommand(BaseLayoutCommand):
             if output.exists() and not force:
                 self.console.print_error(f"Output file already exists: {output}")
                 self.console.print_error("Use --force to overwrite")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Get profile from context
             from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
@@ -112,7 +112,7 @@ class ParseKeymapCommand(BaseLayoutCommand):
                 self.console.print_error("Keymap parsing failed:")
                 for error in result.errors:
                     self.console.print_error(f"  • {error}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Save the parsed layout data to output file
             if result.layout_data:
@@ -188,7 +188,7 @@ class ImportKeymapCommand(BaseLayoutCommand):
             if output_file.exists() and not force:
                 self.console.print_error(f"Layout file already exists: {output_file}")
                 self.console.print_error("Use --force to overwrite")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Auto-detect parsing mode if not specified
             if mode == "auto":
@@ -209,13 +209,13 @@ class ImportKeymapCommand(BaseLayoutCommand):
                 self.console.print_error(
                     "Use --profile to specify keyboard (e.g., --profile glove80/v25.05) or use --mode full"
                 )
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Validate method parameter
             if method not in ["ast", "regex"]:
                 self.console.print_error(f"Invalid parsing method: {method}")
                 self.console.print_error("Valid methods: ast, regex")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Get profile from context
             from glovebox.cli.helpers.profile import get_keyboard_profile_from_context
@@ -248,7 +248,7 @@ class ImportKeymapCommand(BaseLayoutCommand):
                 self.console.print_error("Keymap parsing failed:")
                 for error in result.errors:
                     self.console.print_error(f"  • {error}")
-                raise typer.Exit(1)
+                ctx.exit(1)
 
             # Save the parsed layout data to output file
             if result.layout_data:

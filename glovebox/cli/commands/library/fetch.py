@@ -155,11 +155,11 @@ def fetch_layout(
             )
             for error in result.errors:
                 typer.echo(f"   {error}")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
     except Exception as e:
         typer.echo(Icons.format_with_icon("ERROR", f"Unexpected error: {e}", icon_mode))
-        raise typer.Exit(1) from e
+        ctx.exit(1)
 
 
 # Make the main command available as default
@@ -180,7 +180,7 @@ def fetch_default(
     if ctx.invoked_subcommand is None:
         if source is None:
             typer.echo("Error: Missing source argument")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
         # Call the main fetch command
         fetch_layout(ctx, source, name, output, force)

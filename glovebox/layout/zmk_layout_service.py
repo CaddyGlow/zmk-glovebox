@@ -70,23 +70,14 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
 
             # Use zmk-layout Layout class to generate content
             layout = Layout.from_dict(json_data, providers=self.zmk_providers)
-            keymap_content = layout.to_keymap()
-            # Generate output files using zmk-layout
-            # The save method writes files and returns self, not a result dict
-            # if output_dir:
-            #     layout.save(str(output_dir))
-            #     # TODO: Read the generated files back to provide content
-            #     result = {"keymap_content": "", "config_content": ""}
-            # else:
-            #     # For stdout output, zmk-layout doesn't have direct content generation
-            #     # Return a message indicating this limitation
-            #     result = {
-            #         "keymap_content": "# zmk-layout library integration active\n# File-based output only - use -o option to generate files",
-            #         "config_content": "# zmk-layout library integration active\n# File-based output only - use -o option to generate files",
-            #     }
+            keymap_content = layout.export.keymap().generate()
 
-            # Extract generated content - zmk-layout may use different keys
-            # keymap_content = result.get("keymap_content", result.get("keymap", ""))
+            # Try to generate config content if available
+            try:
+                config_content = layout.export.config().generate()
+            except Exception:
+                # Config generation may not be available for all layouts
+                config_content = ""
             # config_content = result.get("config_content", result.get("config", ""))
 
             # Create successful LayoutResult
@@ -199,6 +190,74 @@ class ZmkLayoutIntegrationService(GloveboxBaseModel, StructlogMixin):
                 exc_info=self.logger.isEnabledFor(logging.DEBUG),
             )
             return [f"Validation failed: {e}"]
+
+    def parse_keymap(
+        self, keymap_content: str, profile: str | None = None
+    ) -> LayoutResult:
+        """Parse ZMK keymap file content to JSON using zmk-layout library.
+
+        Args:
+            keymap_content: Raw ZMK keymap file content
+            profile: Optional keyboard profile for parsing context
+
+        Returns:
+            LayoutResult with parsed JSON content
+        """
+        try:
+            self.logger.info(
+                "parsing_keymap_with_zmk_library",
+                content_length=len(keymap_content),
+                keyboard_id=self.keyboard_id,
+                profile=profile,
+            )
+
+            # Use zmk-layout Library's Layout.from_string() method to parse keymap
+            layout = Layout.from_string(keymap_content, providers=self.zmk_providers)
+
+            # Convert to JSON format
+            json_data = layout.to_dict()
+
+            # Create successful LayoutResult
+            layout_result = LayoutResult(
+                success=True,
+                keymap_content=keymap_content,  # Original content
+                config_content="",  # Parsing doesn't generate config
+                json_content=json_data,
+                errors=[],
+                warnings=[],
+                messages=[
+                    "Keymap parsed successfully with zmk-layout library",
+                    f"Parsed {len(keymap_content)} chars of keymap content",
+                    f"Generated {len(json_data.get('layers', []))} layers",
+                ],
+            )
+
+            self.logger.info(
+                "keymap_parsing_successful",
+                layers_count=len(json_data.get("layers", [])),
+                keyboard=json_data.get("keyboard", "unknown"),
+            )
+            return layout_result
+
+        except Exception as e:
+            self.logger.error(
+                "keymap_parsing_failed",
+                error=str(e),
+                keyboard_id=self.keyboard_id,
+                content_length=len(keymap_content),
+                exc_info=self.logger.isEnabledFor(logging.DEBUG),
+            )
+
+            # Return error result
+            return LayoutResult(
+                success=False,
+                keymap_content=keymap_content,
+                config_content="",
+                json_content={},
+                errors=[f"Parsing failed: {e}"],
+                warnings=[],
+                messages=[],
+            )
 
     def get_supported_keyboards(self) -> list[str]:
         """Get list of keyboards supported by zmk-layout.

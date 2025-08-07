@@ -324,7 +324,7 @@ class DiffLayoutCommand(IOCommand):
         exc_info = self.logger.isEnabledFor(logging.DEBUG)
         self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
         self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
+        ctx.exit(1)
 
 
 class PatchLayoutCommand(IOCommand):
@@ -438,4 +438,4 @@ class PatchLayoutCommand(IOCommand):
         exc_info = self.logger.isEnabledFor(logging.DEBUG)
         self.logger.error("Failed to %s: %s", operation, error, exc_info=exc_info)
         self.console.print_error(f"Failed to {operation}: {error}")
-        raise typer.Exit(1) from error
+        ctx.exit(1)

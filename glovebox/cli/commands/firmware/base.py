@@ -46,7 +46,7 @@ class FirmwareFileCommand(BaseFirmwareCommand):
                 f"Invalid firmware file extension: {file_path.suffix}"
             )
             self.console.print_info("Supported extensions: .uf2, .json")
-            raise typer.Exit(1)
+            ctx.exit(1)
 
 
 class FirmwareOutputCommand(BaseFirmwareCommand):

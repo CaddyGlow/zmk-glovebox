@@ -9,6 +9,7 @@ from functools import wraps
 from typing import Any
 
 import typer
+from click.exceptions import Exit
 
 from glovebox.core.errors import BuildError, ConfigError, FlashError, KeymapError
 from glovebox.core.structlog_logger import get_struct_logger
@@ -36,6 +37,9 @@ def handle_errors(func: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return func(*args, **kwargs)
+        except (typer.Exit, Exit):
+            # Let typer.Exit and click.Exit pass through without re-wrapping
+            raise
         except KeymapError as e:
             logger.error("keymap_error", error=str(e))
             print_stack_trace_if_verbose()

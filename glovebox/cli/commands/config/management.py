@@ -104,7 +104,7 @@ def show_config(
 
         except Exception as e:
             print_error_message(f"Failed to read configuration: {e}")
-            raise typer.Exit(1) from e
+            ctx.exit(1)
 
     # Default behavior: show configured values only (unless --all specified)
     _show_all_config(
