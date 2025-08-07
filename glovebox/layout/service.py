@@ -79,12 +79,54 @@ class LayoutService(BaseService):
             if not keymap_data.layers:
                 raise LayoutError("No layers found in layout data")
 
-            # Determine keyboard name
+            # Determine keyboard name and ID
             keyboard_name = keymap_data.keyboard or "unknown"
+            keyboard_id = None
             if profile and profile.keyboard_config:
                 keyboard_name = profile.keyboard_config.keyboard
+                keyboard_id = profile.keyboard_config.keyboard
 
-            # Generate proper ZMK content using existing infrastructure
+            # Try using zmk-layout library first (enhanced compilation)
+            try:
+                from glovebox.layout.zmk_layout_service import create_zmk_layout_service
+
+                self.logger.info(
+                    "attempting_zmk_layout_compilation",
+                    keyboard_name=keyboard_name,
+                    keyboard_id=keyboard_id,
+                )
+
+                # Create zmk-layout service with appropriate services
+                zmk_service = create_zmk_layout_service(
+                    keyboard_id=keyboard_id,
+                    services=None,  # Use real glovebox services
+                )
+
+                # Use zmk-layout compilation
+                result = zmk_service.compile_layout(keymap_data)
+
+                if result.success and result.keymap_content:
+                    self.logger.info(
+                        "zmk_layout_compilation_successful",
+                        keymap_size=len(result.keymap_content),
+                        config_size=len(result.config_content or ""),
+                    )
+                    return result
+                else:
+                    self.logger.warning(
+                        "zmk_layout_compilation_failed",
+                        errors=result.errors,
+                        fallback_to_glovebox=True,
+                    )
+
+            except Exception as zmk_error:
+                self.logger.warning(
+                    "zmk_layout_service_unavailable",
+                    error=str(zmk_error),
+                    fallback_to_glovebox=True,
+                )
+
+            # Fallback to existing glovebox generation infrastructure
             if profile:
                 # Use full ZMK generation with profile
                 from glovebox.layout.behavior.management import (
@@ -333,3 +375,93 @@ def create_layout_service(
         layout_service=layout_service,
         keymap_parser=keymap_parser,
     )
+
+
+def create_enhanced_layout_service(
+    file_adapter: FileAdapterProtocol,
+    template_adapter: TemplateAdapterProtocol,
+    behavior_registry: BehaviorRegistryProtocol,
+    component_service: LayoutComponentService,
+    layout_display_service: LayoutDisplayService,
+    behavior_formatter: BehaviorFormatterImpl,
+    dtsi_generator: ZmkFileContentGenerator,
+    keymap_parser: ZmkKeymapParser | None = None,
+    keyboard_id: str | None = None,
+    enable_zmk_layout: bool = True,
+) -> LayoutService:
+    """Create an enhanced LayoutService with optional zmk-layout integration.
+
+    This factory function creates a LayoutService that can optionally use the
+    zmk-layout library for enhanced compilation capabilities while maintaining
+    full backward compatibility with existing glovebox infrastructure.
+
+    Args:
+        file_adapter: File operations adapter
+        template_adapter: Template processing adapter
+        behavior_registry: ZMK behavior registry
+        component_service: Layout component extraction service
+        layout_display_service: Layout display and formatting service
+        behavior_formatter: Behavior formatting implementation
+        dtsi_generator: ZMK file content generator
+        keymap_parser: Optional ZMK keymap parser
+        keyboard_id: Optional keyboard identifier for zmk-layout
+        enable_zmk_layout: Whether to enable zmk-layout integration
+
+    Returns:
+        Enhanced LayoutService with zmk-layout support
+    """
+    # Create base layout service
+    service = create_layout_service(
+        file_adapter=file_adapter,
+        template_adapter=template_adapter,
+        behavior_registry=behavior_registry,
+        component_service=component_service,
+        layout_service=layout_display_service,
+        behavior_formatter=behavior_formatter,
+        dtsi_generator=dtsi_generator,
+        keymap_parser=keymap_parser,
+    )
+
+    # Add zmk-layout integration if enabled
+    if enable_zmk_layout:
+        try:
+            from glovebox.layout.zmk_layout_service import create_zmk_layout_service
+
+            # Create services dict for zmk-layout integration
+            services = {
+                "keyboard_profile": None,  # Will use real services
+                "template": template_adapter,
+                "logging": None,  # Will use real services
+                "settings": None,  # Will use real services
+            }
+
+            # Store zmk-layout service as additional capability
+            setattr(service, '_zmk_layout_service', create_zmk_layout_service(
+                keyboard_id=keyboard_id,
+                services=services,
+            ))
+
+            service.logger.info(
+                "enhanced_layout_service_created",
+                zmk_layout_enabled=True,
+                keyboard_id=keyboard_id,
+            )
+
+        except ImportError:
+            service.logger.warning(
+                "zmk_layout_integration_unavailable",
+                fallback_mode=True,
+            )
+        except Exception as e:
+            service.logger.warning(
+                "zmk_layout_integration_failed",
+                error=str(e),
+                fallback_mode=True,
+            )
+    else:
+        service.logger.info(
+            "enhanced_layout_service_created",
+            zmk_layout_enabled=False,
+        )
+
+    return service

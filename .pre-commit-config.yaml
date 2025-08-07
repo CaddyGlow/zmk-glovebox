@@ -30,5 +30,15 @@ repos:
           - typer>=0.16.0
           - lark>=1.2.2
           - httpx>=0.28.1
+          - zmk-layout>=0.0.1
 
         args: [--config-file=pyproject.toml]
+
+  - repo: local
+    hooks:
+      - id: check-local-sources
+        name: Check for local development sources
+        language: python
+        entry: python scripts/check_local_sources.py
+        files: pyproject.toml
+        pass_filenames: false

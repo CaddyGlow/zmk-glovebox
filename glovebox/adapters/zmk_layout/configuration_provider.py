@@ -10,17 +10,20 @@ class GloveboxConfigurationProvider(GloveboxBaseModel):
     """Configuration provider that bridges glovebox services to zmk-layout."""
 
     def __init__(
-        self, keyboard_profile_service, settings_service, keyboard_id: str | None = None
-    ):
+        self,
+        keyboard_profile_service: Any,
+        settings_service: Any,
+        keyboard_id: str | None = None,
+    ) -> None:
         super().__init__()
         self.profile_service = keyboard_profile_service
         self.settings_service = settings_service
         self.keyboard_id = keyboard_id or settings_service.get_active_keyboard_id()
 
         # Cache for expensive operations
-        self._behavior_cache = None
-        self._validation_cache = None
-        self._template_cache = None
+        self._behavior_cache: list[dict[str, Any]] | None = None
+        self._validation_cache: dict[str, Any] | None = None
+        self._template_cache: dict[str, Any] | None = None
 
         # Get logger for this component
         self.logger = logging.getLogger(__name__)

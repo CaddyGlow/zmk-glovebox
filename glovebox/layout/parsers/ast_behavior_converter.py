@@ -29,7 +29,7 @@ class ASTBehaviorConverter(StructlogMixin):
         Args:
             defines: Optional dictionary of preprocessor defines for resolution
         """
-        self.logger = get_struct_logger(__name__)
+        super().__init__()
         self.defines = defines or {}
 
     def _resolve_token(self, token: str) -> str:

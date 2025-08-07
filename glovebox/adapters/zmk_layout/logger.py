@@ -9,7 +9,7 @@ from glovebox.models.base import GloveboxBaseModel
 class GloveboxLogger(GloveboxBaseModel):
     """Logger that bridges glovebox logging service to zmk-layout."""
 
-    def __init__(self, logging_service, component: str = "zmk_layout"):
+    def __init__(self, logging_service: Any, component: str = "zmk_layout") -> None:
         super().__init__()
         self.logger = logging_service.get_logger(component)
         self.component = component

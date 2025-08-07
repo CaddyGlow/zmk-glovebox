@@ -19,9 +19,6 @@ class CredentialManager(BaseService):
 
     def __init__(self, credential_config: MoErgoCredentialConfig | None = None):
         super().__init__("CredentialManager", "1.0.0")
-        from glovebox.core.structlog_logger import get_struct_logger
-
-        self.logger = get_struct_logger(__name__)
         self.config = credential_config or MoErgoCredentialConfig()
 
         # Ensure config directory exists

@@ -42,9 +42,9 @@ class VariableResolver(StructlogMixin):
         Args:
             variables: Dictionary of variable name to value mappings
         """
+        super().__init__()
         self.variables = variables
         self._resolved_cache: dict[str, Any] = {}
-        self.logger = get_struct_logger(__name__)
 
     def resolve_value(self, value: Any) -> Any:
         """Resolve variables in a single value.

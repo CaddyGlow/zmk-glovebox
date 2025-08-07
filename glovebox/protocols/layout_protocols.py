@@ -1,8 +1,10 @@
 """Layout service protocols for type-safe interfaces."""
 
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from glovebox.layout.models import LayoutData
+
+if TYPE_CHECKING:
+    from glovebox.layout.models import LayoutData
 
 
 @runtime_checkable
@@ -14,7 +16,7 @@ class TemplateServiceProtocol(Protocol):
     nested template dependencies.
     """
 
-    def process_layout_data(self, layout_data: LayoutData) -> LayoutData:
+    def process_layout_data(self, layout_data: "LayoutData") -> "LayoutData":
         """Process layout data with multi-pass template resolution.
 
         Args:
@@ -30,7 +32,7 @@ class TemplateServiceProtocol(Protocol):
         ...
 
     def create_template_context(
-        self, layout_data: LayoutData, stage: str
+        self, layout_data: "LayoutData", stage: str
     ) -> dict[str, Any]:
         """Create template context for given resolution stage.
 
@@ -43,7 +45,7 @@ class TemplateServiceProtocol(Protocol):
         """
         ...
 
-    def validate_template_syntax(self, layout_data: LayoutData) -> list[str]:
+    def validate_template_syntax(self, layout_data: "LayoutData") -> list[str]:
         """Validate all template syntax in layout data.
 
         Args:

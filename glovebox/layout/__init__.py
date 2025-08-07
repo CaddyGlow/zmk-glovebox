@@ -68,7 +68,11 @@ from glovebox.layout.parsers import (
     create_zmk_keymap_parser,
     create_zmk_keymap_parser_from_profile,
 )
-from glovebox.layout.service import LayoutService, create_layout_service
+from glovebox.layout.service import (
+    LayoutService,
+    create_enhanced_layout_service,
+    create_layout_service,
+)
 from glovebox.layout.template_service import (
     create_jinja2_template_service,
     create_template_service,
@@ -77,6 +81,10 @@ from glovebox.layout.zmk_generator import (
     ZmkFileContentGenerator,
     create_zmk_file_generator,
 )
+
+
+# NOTE: ZmkLayoutIntegrationService is not imported here to avoid circular imports
+# Import directly from glovebox.layout.zmk_layout_service when needed
 
 
 if TYPE_CHECKING:
@@ -121,6 +129,7 @@ __all__ = [
     "ZmkFileContentGenerator",
     # Factory functions
     "create_layout_service",
+    "create_enhanced_layout_service",
     "create_layout_component_service",
     "create_layout_display_service",
     "create_grid_layout_formatter",

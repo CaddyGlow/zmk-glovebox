@@ -14,9 +14,6 @@ class CognitoAuth(BaseService):
 
     def __init__(self, cognito_config: MoErgoCognitoConfig | None = None):
         super().__init__("CognitoAuth", "1.0.0")
-        from glovebox.core.structlog_logger import get_struct_logger
-
-        self.logger = get_struct_logger(__name__)
         self.config = cognito_config or MoErgoCognitoConfig()
 
     def _get_headers(self, target: str) -> dict[str, str]:

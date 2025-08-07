@@ -281,9 +281,7 @@ class LayoutPatchSystem:
                     # Fall back to original if patch fails
                     local_logger.warning(
                         "failed_to_apply_unified_diff",
-                        error=result.stderr.decode()
-                        if result.stderr
-                        else "unknown error",
+                        error=result.stderr if result.stderr else "unknown error",
                     )
                     return original
 

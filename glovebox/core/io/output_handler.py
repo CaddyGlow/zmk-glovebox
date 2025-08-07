@@ -36,7 +36,6 @@ class OutputHandler(BaseService):
     def __init__(self) -> None:
         """Initialize the output handler."""
         super().__init__(service_name="OutputHandler", service_version="1.0.0")
-        self.logger = get_struct_logger(__name__)
 
     def write_output(self, data: Any, destination: str, format: str = "json") -> None:
         """Write data to the specified destination.

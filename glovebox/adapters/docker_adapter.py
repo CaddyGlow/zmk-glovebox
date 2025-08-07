@@ -35,7 +35,7 @@ class LoggerOutputMiddleware(OutputMiddleware[str]):
     prefixes for stdout and stderr streams.
     """
 
-    def __init__(self, logger, stdout_prefix: str = "", stderr_prefix: str = ""):
+    def __init__(self, logger: Any, stdout_prefix: str = "", stderr_prefix: str = ""):
         """Initialize middleware with custom prefixes.
 
         Args:
@@ -515,7 +515,7 @@ class DockerAdapter:
 
 
 def create_logger_middleware(
-    logger_instance: logging.Logger | None = None,
+    logger_instance: Any | None = None,
     stdout_prefix: str = "",
     stderr_prefix: str = "",
 ) -> LoggerOutputMiddleware:
@@ -537,7 +537,7 @@ def create_logger_middleware(
 def create_chained_docker_middleware(
     middleware_chain: list[OutputMiddleware[Any]],
     include_logger: bool = True,
-    logger_instance: logging.Logger | None = None,
+    logger_instance: Any | None = None,
     stdout_prefix: str = "",
     stderr_prefix: str = "",
 ) -> OutputMiddleware[Any]:

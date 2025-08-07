@@ -9,7 +9,7 @@ from glovebox.models.base import GloveboxBaseModel
 class GloveboxTemplateProvider(GloveboxBaseModel):
     """Template provider that bridges glovebox template service to zmk-layout."""
 
-    def __init__(self, template_service):
+    def __init__(self, template_service: Any) -> None:
         super().__init__()
         self.template_service = template_service
         self.logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class GloveboxTemplateProvider(GloveboxBaseModel):
     def render_string(self, template: str, context: dict[str, Any]) -> str:
         """Render a template string with given context."""
         try:
-            result = self.template_service.render_string(template, context)
+            result = str(self.template_service.render_string(template, context))
             self.logger.debug(
                 "Rendered template string",
                 extra={
@@ -40,7 +40,7 @@ class GloveboxTemplateProvider(GloveboxBaseModel):
     def render_file(self, template_path: str, context: dict[str, Any]) -> str:
         """Render a template file with given context."""
         try:
-            result = self.template_service.render_file(template_path, context)
+            result = str(self.template_service.render_file(template_path, context))
             self.logger.debug(
                 "Rendered template file",
                 extra={
@@ -63,7 +63,7 @@ class GloveboxTemplateProvider(GloveboxBaseModel):
     def has_template_syntax(self, content: str) -> bool:
         """Check if content contains template syntax."""
         try:
-            has_syntax = self.template_service.contains_template_syntax(content)
+            has_syntax = bool(self.template_service.contains_template_syntax(content))
             self.logger.debug(
                 "Template syntax check",
                 extra={"content_length": len(content), "has_syntax": has_syntax},
@@ -100,7 +100,7 @@ class GloveboxTemplateProvider(GloveboxBaseModel):
     def escape_content(self, content: str) -> str:
         """Escape special characters in content."""
         try:
-            escaped = self.template_service.escape_template_content(content)
+            escaped = str(self.template_service.escape_template_content(content))
             self.logger.debug(
                 "Content escaped",
                 extra={"original_length": len(content), "escaped_length": len(escaped)},
