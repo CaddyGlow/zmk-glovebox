@@ -44,18 +44,28 @@ class StructlogColorRenderer:
         event = event_dict.get("event", "")
 
         # Extract structured fields (everything except standard fields)
-        standard_fields = {"level", "timestamp", "logger", "event", "exc_info", "filename", "lineno"}
+        standard_fields = {
+            "level",
+            "timestamp",
+            "logger",
+            "event",
+            "exc_info",
+            "filename",
+            "lineno",
+        }
         extra_fields = {k: v for k, v in event_dict.items() if k not in standard_fields}
 
         # Format based on log level
         if level == "debug":
             # DEBUG format: 14:22:08 [debug    ] message [logger.name] filename=serve.py lineno=627
-            time_part = timestamp[11:19] if len(timestamp) >= 19 else timestamp  # Extract HH:MM:SS
+            time_part = (
+                timestamp[11:19] if len(timestamp) >= 19 else timestamp
+            )  # Extract HH:MM:SS
             level_colored = f"[{level:<8}]"
             if HAS_COLORLOG and level in self.color_map:
                 color_code = self._get_color_code(self.color_map[level])
                 level_colored = f"[\033[{color_code}m{level:<8}\033[0m]"
-            
+
             # Add filename and lineno to extra_fields if available from callsite
             filename = event_dict.get("filename", "")
             lineno = event_dict.get("lineno", "")
@@ -63,33 +73,35 @@ class StructlogColorRenderer:
                 extra_fields["filename"] = filename
             if lineno:
                 extra_fields["lineno"] = lineno
-            
+
             # Build message parts
             parts = [f"{time_part} {level_colored} {event}"]
-            
+
             # Add structured fields
             if extra_fields:
                 fields_str = " ".join(f"{k}={v}" for k, v in extra_fields.items())
                 parts.append(f" {fields_str}")
-            
+
             # Add logger name in brackets at the end for debug
             parts.append(f" [{logger_name}]")
-            
+
         else:
             # INFO+ format: 2025-08-05 14:20:34 [info     ] message [logger.name] field=value
             # Use full timestamp for INFO and above
-            date_time = timestamp[:19] if len(timestamp) >= 19 else timestamp  # Extract YYYY-MM-DD HH:MM:SS
+            date_time = (
+                timestamp[:19] if len(timestamp) >= 19 else timestamp
+            )  # Extract YYYY-MM-DD HH:MM:SS
             level_colored = f"[{level:<8}]"
             if HAS_COLORLOG and level in self.color_map:
                 color_code = self._get_color_code(self.color_map[level])
                 level_colored = f"[\033[{color_code}m{level:<8}\033[0m]"
-            
+
             # Build message parts
             parts = [f"{date_time} {level_colored} {event:<30}"]
-            
+
             # Add logger name in brackets
             parts.append(f" [{logger_name}]")
-            
+
             # Add structured fields
             if extra_fields:
                 fields_str = " ".join(f"{k}={v}" for k, v in extra_fields.items())

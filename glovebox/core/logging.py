@@ -194,7 +194,7 @@ def _create_formatter(format_type: str, colored: bool = False) -> logging.Format
     else:
         # Standard formats when structlog is not available
         formats = {
-            "simple": "%(levelname)s: %(message)s", 
+            "simple": "%(levelname)s: %(message)s",
             "detailed": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         }
 
@@ -379,20 +379,20 @@ def setup_logging(
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    
+
     # Use standard formatter - structlog handles its own formatting
     console_handler.setFormatter(logging.Formatter(log_format))
-    
+
     root_logger.addHandler(console_handler)
 
     # File handler if requested
     if log_file:
         try:
             file_handler = logging.FileHandler(log_file)
-            
+
             # Use standard formatter - structlog handles its own formatting
             file_handler.setFormatter(logging.Formatter(log_format))
-                
+
             root_logger.addHandler(file_handler)
         except OSError as e:
             # Log error about file handler creation to console, but don't crash

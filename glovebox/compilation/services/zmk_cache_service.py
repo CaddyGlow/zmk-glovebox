@@ -4,8 +4,6 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glovebox.core.structlog_logger import get_struct_logger
-
 from glovebox.compilation.cache.compilation_build_cache_service import (
     CompilationBuildCacheService,
 )
@@ -15,6 +13,7 @@ from glovebox.compilation.cache.workspace_cache_service import (
 from glovebox.compilation.models import ZmkCompilationConfig
 from glovebox.config.user_config import UserConfig
 from glovebox.core.cache.cache_manager import CacheManager
+from glovebox.core.structlog_logger import get_struct_logger
 from glovebox.protocols import MetricsProtocol
 
 
@@ -271,7 +270,9 @@ class ZmkCacheService:
 
         except Exception as e:
             exc_info = self.logger.isEnabledFor(logging.DEBUG)
-            self.logger.warning("failed_to_cache_workspace", error=str(e), exc_info=exc_info)
+            self.logger.warning(
+                "failed_to_cache_workspace", error=str(e), exc_info=exc_info
+            )
             # TODO: Enable after refactoring
             # if progress_coordinator:
             #     progress_coordinator.update_cache_saving(
